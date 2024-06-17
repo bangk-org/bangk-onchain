@@ -1,0 +1,12 @@
+[build]
+# jobs = 8
+rustflags = ["--cfg", "tokio_unstable", "--cfg", "web_sys_unstable_apis"]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=mold", "--cfg", "tokio_unstable", "--cfg", "web_sys_unstable_apis"]
+
+[unstable]
+codegen-backend = true
+
+[profile.x86_64-unknown-linux-gnu.dev]
+codegen-backend = "cranelift"

@@ -1,0 +1,39 @@
+[package]
+name = "bangk-onchain-common"
+description = "Common utilities for Bangk’s On-Chain programs"
+version = "0.1.0"
+rust-version = "1.75.0"
+edition = "2021"
+authors.workspace = true
+publish.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+no-entrypoint = []
+test-sbf = ["debug-msg"]
+debug-msg = []
+
+[dependencies]
+borsh.workspace = true
+chrono.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+shank.workspace = true
+solana-program.workspace = true
+solana-security-txt.workspace = true
+spl-associated-token-account.workspace = true
+spl-pod.workspace = true
+spl-token-2022.workspace = true
+spl-token-metadata-interface.workspace = true
+thiserror.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[lints]
+workspace = true

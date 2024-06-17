@@ -1,0 +1,7 @@
+[toolchain]
+channel = "nightly"
+# channel = "stable"
+profile = "default"
+components = ["rust-analyzer", "rust-src", "rust-docs", "llvm-tools", "rustc-codegen-cranelift-preview"]
+# components = ["rust-analyzer", "rust-src", "rust-docs", "llvm-tools"]
+targets = ["wasm32-unknown-unknown"]
