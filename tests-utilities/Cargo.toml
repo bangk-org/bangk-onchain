@@ -1,0 +1,27 @@
+[package]
+name = "tests-utilities"
+description = "Common utilities for Bangk’s Tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+bangk-onchain-common = { path = "../bangk-onchain-common", features = ["no-entrypoint"] }
+borsh.workspace = true
+chrono.workspace = true
+log = { version = "0.4.20", features = ["max_level_debug", "release_max_level_warn"] }
+solana-program.workspace = true
+solana-program-runtime.workspace = true
+solana-program-test.workspace = true
+solana-sdk.workspace = true
+spl-associated-token-account.workspace = true
+spl-token-2022.workspace = true
+spl-token-metadata-interface.workspace = true
+
+[lints]
+workspace = true

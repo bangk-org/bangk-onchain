@@ -1,0 +1,135 @@
+# To test locally: https://github.com/nektos/act
+
+name: "Tests & Checks"
+on:
+  pull_request:
+  push:
+env:
+  RUST_VERSION: "1.80.0"
+  SOLANA_VERSION: "v1.18.20"
+  BANGK_MODE: "TESTING"
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        name: Environment setup
+        with:
+          install-rust: true
+          install-solana: true
+          initial: true
+
+  fmt:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+      - name: Check formatting 
+        run: |
+          cargo fmt --check --all
+      
+  spellcheck:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+      - name: Spellcheck
+        run: cargo spellcheck --code 1
+      
+  audit:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+      - name: Audit
+        run: cargo audit
+      
+  deny:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+      - name: Deny
+        run: cargo deny check
+
+
+  clippy:
+    needs: [fmt, spellcheck, deny, audit]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+        with:
+          install-mold: true
+      - name: Cache setup
+        uses: actions/cache@v4
+        with:
+          path: target/
+          key: clippy-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run clippy
+        run: |
+          cargo clippy --all-features --workspace --all-targets -- -Dwarnings
+
+  tests:
+    needs: [clippy]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+        with:
+          install-mold: true
+      - name: Dependencies cache setup
+        uses: actions/cache@v4
+        with:
+          path: target/
+          key: tests-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run tests & get coverage
+        run: |
+          cargo llvm-cov --no-report --locked --all-features nextest
+          # cargo llvm-cov --no-report --doc
+          cargo llvm-cov report --lcov --output-path lcov.info
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+
+  prg-ico:
+    needs: [tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+        with:
+          install-solana: true
+      - name: Dependencies cache setup
+        uses: actions/cache@v4
+        with:
+          path: target/
+          key: prg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Generating program
+        run: |
+          cd bangk-ico
+          BANGK_MODE="TESTING" cargo build-sbf -- -Zlints && mv ../target/deploy/bangk_ico.so ../prg-ico-testing.so
+          BANGK_MODE="DEVNET" cargo build-sbf -- -Zlints && mv ../target/deploy/bangk_ico.so ../prg-ico-devnet.so
+          BANGK_MODE="MAINNET" cargo build-sbf -- -Zlints && mv ../target/deploy/bangk_ico.so ../prg-ico-mainnet.so
+          cd ../
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prg-ico
+          path: |
+            prg-ico-testing.so
+            prg-ico-devnet.so
+            prg-ico-mainnet.so

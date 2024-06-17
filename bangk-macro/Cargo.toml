@@ -1,0 +1,20 @@
+[package]
+name = "bangk-macro"
+description = "Derive & Attribute macros used on the Bangk’s programs"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+darling = "0.20.10"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "2.0.72"
+
+[lib]
+proc-macro = true

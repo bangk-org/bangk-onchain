@@ -1,0 +1,143 @@
+[workspace]
+resolver = "2"
+members = [
+  "bangk-ico",
+  "bangk-macro",
+  "bangk-onchain-common",
+  "tests-utilities",
+]
+
+[workspace.package]
+description = "Bangk On-Chain programs"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+authors = ["Vincent Berthier <vincent.berthier@seven-france.net>"]
+publish = false
+readme = "README.md"
+keywords = ["solana", "DeFi", "dApp", "cryptocurrency"]
+categories = ["cryptography::cryptocurrencies", "finance"]
+
+[workspace.dependencies]
+borsh = { version = "1.5.1", features = ["derive"] }
+chrono = { version = "0.4.38", features = ["unstable-locales", "serde"] }
+derive_more = { version = "1.0.0-beta", features = ["from", "display"] }
+num-derive = "0.4.1"
+num-traits = "0.2.19"
+serde = { version = "1.0.204", features = ["derive"] }
+shank = "0.4.2"
+solana-client = "=1.18.20"
+solana-program = "=1.18.20"
+solana-program-runtime = "=1.18.20"
+solana-program-test = "=1.18.20"
+solana-rpc-client-api = "=1.18.20"
+solana-sdk = { version = "=1.18.20" }
+solana-security-txt = "1.1.1"
+solana-transaction-status = "=1.18.20"
+spl-associated-token-account = { version = "2.2.0", features = [
+  "no-entrypoint",
+] }
+spl-token-2022 = { version = "3.0.4", features = ["no-entrypoint"] }
+spl-token-metadata-interface = "0.3.5"
+time = "0.3.36"
+
+# See: https://github.com/solana-labs/solana/blob/master/Cargo.toml#L440
+[patch.crates-io]
+aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }
+curve25519-dalek = { git = "https://github.com/solana-labs/curve25519-dalek.git", rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464" }
+
+[workspace.lints.clippy]
+nursery = "warn"
+pedantic = "warn"
+restriction = "allow" # activated individually below
+module_name_repetitions = { level = "allow", priority = 1 }
+used_underscore_binding = { level = "allow", priority = 1 }
+# empty_docs = { level = "allow", priority = 1 }
+
+# Restriction lints
+absolute_paths = { level = "warn", priority = 1 }
+alloc_instead_of_core = { level = "warn", priority = 1 }
+allow_attributes = { level = "warn", priority = 1 }
+allow_attributes_without_reason = { level = "warn", priority = 1 }
+arithmetic_side_effects = { level = "warn", priority = 1 }
+assertions_on_result_states = { level = "warn", priority = 1 }
+as_underscore = { level = "warn", priority = 1 }
+big_endian_bytes = { level = "warn", priority = 1 }
+clone_on_ref_ptr = { level = "warn", priority = 1 }
+create_dir = { level = "warn", priority = 1 }
+dbg_macro = { level = "warn", priority = 1 }
+default_numeric_fallback = { level = "warn", priority = 1 }
+default_union_representation = { level = "warn", priority = 1 }
+deref_by_slicing = { level = "warn", priority = 1 }
+disallowed_script_idents = { level = "warn", priority = 1 }
+else_if_without_else = { level = "warn", priority = 1 }
+empty_drop = { level = "warn", priority = 1 }
+# empty_enum_variants_with_brackets = { level = "warn", priority = 1 } # 1.77 lint
+empty_structs_with_brackets = { level = "warn", priority = 1 }
+# error_impl_error = { level = "warn", priority = 1 }
+exit = { level = "warn", priority = 1 }
+expect_used = { level = "warn", priority = 1 }
+filetype_is_file = { level = "warn", priority = 1 }
+float_cmp_const = { level = "warn", priority = 1 }
+fn_to_numeric_cast_any = { level = "warn", priority = 1 }
+format_push_string = { level = "warn", priority = 1 }
+get_unwrap = { level = "warn", priority = 1 }
+host_endian_bytes = { level = "warn", priority = 1 }
+if_then_some_else_none = { level = "warn", priority = 1 }
+impl_trait_in_params = { level = "warn", priority = 1 }
+# indexing_slicing = { level = "warn", priority = 1 }
+inline_asm_x86_att_syntax = { level = "warn", priority = 1 }
+inline_asm_x86_intel_syntax = { level = "warn", priority = 1 }
+integer_division = { level = "warn", priority = 1 }
+# iter_over_hash_type = { level = "warn", priority = 1 }
+large_include_file = { level = "warn", priority = 1 }
+let_underscore_must_use = { level = "warn", priority = 1 }
+little_endian_bytes = { level = "warn", priority = 1 }
+lossy_float_literal = { level = "warn", priority = 1 }
+map_err_ignore = { level = "warn", priority = 1 }
+mem_forget = { level = "warn", priority = 1 }
+min_ident_chars = { level = "warn", priority = 1 }
+missing_assert_message = { level = "warn", priority = 1 }
+missing_asserts_for_indexing = { level = "warn", priority = 1 }
+mixed_read_write_in_expression = { level = "warn", priority = 1 }
+multiple_inherent_impl = { level = "warn", priority = 1 }
+multiple_unsafe_ops_per_block = { level = "warn", priority = 1 }
+mutex_atomic = { level = "warn", priority = 1 }
+needless_raw_strings = { level = "warn", priority = 1 }
+panic_in_result_fn = { level = "warn", priority = 1 }
+panic = { level = "warn", priority = 1 }
+partial_pub_fields = { level = "warn", priority = 1 }
+print_stderr = { level = "warn", priority = 1 }
+print_stdout = { level = "warn", priority = 1 }
+# pub_use = { level = "warn", priority = 1 }
+pub_without_shorthand = { level = "warn", priority = 1 }
+rc_buffer = { level = "warn", priority = 1 }
+rc_mutex = { level = "warn", priority = 1 }
+redundant_type_annotations = { level = "warn", priority = 1 }
+rest_pat_in_fully_bound_structs = { level = "warn", priority = 1 }
+same_name_method = { level = "warn", priority = 1 }
+self_named_module_files = { level = "warn", priority = 1 }
+semicolon_inside_block = { level = "warn", priority = 1 }
+shadow_unrelated = { level = "warn", priority = 1 }
+string_add = { level = "warn", priority = 1 }
+string_slice = { level = "warn", priority = 1 }
+string_to_string = { level = "warn", priority = 1 }
+str_to_string = { level = "warn", priority = 1 }
+suspicious_xor_used_as_pow = { level = "warn", priority = 1 }
+tests_outside_test_module = { level = "warn", priority = 1 }
+todo = { level = "warn", priority = 1 }
+try_err = { level = "warn", priority = 1 }
+undocumented_unsafe_blocks = { level = "warn", priority = 1 }
+unimplemented = { level = "warn", priority = 1 }
+unnecessary_safety_comment = { level = "warn", priority = 1 }
+unnecessary_safety_doc = { level = "warn", priority = 1 }
+unnecessary_self_imports = { level = "warn", priority = 1 }
+unneeded_field_pattern = { level = "warn", priority = 1 }
+unreachable = { level = "warn", priority = 1 }
+unseparated_literal_suffix = { level = "warn", priority = 1 }
+unwrap_in_result = { level = "warn", priority = 1 }
+unwrap_used = { level = "warn", priority = 1 }
+verbose_file_reads = { level = "warn", priority = 1 }
+
+[workspace.metadata.spellcheck]
+config = ".config/spellcheck.toml"
