@@ -85,6 +85,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Free space
+        run: |
+          sudo rm -rf /opt/hostedtoolcache && sudo rm -rf "/usr/local/share/boost" && sudo rm -rf "$AGENT_TOOLSDIRECTORY"
       - name: Seting up environment
         uses: ./.github/actions/setup
         with:
@@ -133,3 +136,32 @@ jobs:
             prg-ico-testing.so
             prg-ico-devnet.so
             prg-ico-mainnet.so
+
+  prg-main:
+    needs: [tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seting up environment
+        uses: ./.github/actions/setup
+        with:
+          install-solana: true
+      - name: Dependencies cache setup
+        uses: actions/cache@v4
+        with:
+          path: target/
+          key: prg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Generating program
+        run: |
+          cd bangk
+          BANGK_MODE="TESTING" cargo build-sbf -- -Zlints && mv ../target/deploy/bangk.so ../prg-main-testing.so
+          BANGK_MODE="DEVNET" cargo build-sbf -- -Zlints && mv ../target/deploy/bangk.so ../prg-main-devnet.so
+          BANGK_MODE="MAINNET" cargo build-sbf -- -Zlints && mv ../target/deploy/bangk.so ../prg-main-mainnet.so
+          cd ../
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prg-main
+          path: |
+            prg-main-testing.so
+            prg-main-devnet.so
+            prg-main-mainnet.so
