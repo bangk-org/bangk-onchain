@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "bangk",
   "bangk-ico",
   "bangk-macro",
   "bangk-onchain-common",

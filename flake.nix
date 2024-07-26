@@ -151,12 +151,12 @@
         name = "bangk-prg-testing";
         buildPhase = ''
           mkdir -p target && chmod -R 777 target/
-          # ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=TESTING" -v $(pwd):/mnt/code/ solana /bin/bash build-main
+          ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=TESTING" -v $(pwd):/mnt/code/ solana /bin/bash build-main
           ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=TESTING" -v $(pwd):/mnt/code/ solana /bin/bash build-ico
         '';
         installPhase = ''
           mkdir $out
-          # cp target/build-sbf/deploy/bangk.so $out/bangk-main-testing.so
+          cp target/build-sbf/deploy/bangk.so $out/bangk-main-testing.so
           cp target/build-sbf/deploy/bangk_ico.so $out/bangk-ico-testing.so
         '';
       };
@@ -167,12 +167,12 @@
         name = "bangk-prg-devnet";
         buildPhase = ''
           mkdir -p target && chmod -R 777 target/
-          # ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=DEVNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
+          ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=DEVNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
           ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=DEVNET" -v $(pwd):/mnt/code/ solana /bin/bash build-ico
         '';
         installPhase = ''
           mkdir $out
-          # cp target/build-sbf/deploy/bangk.so $out/bangk-main-devnet.so
+          cp target/build-sbf/deploy/bangk.so $out/bangk-main-devnet.so
           cp target/build-sbf/deploy/bangk_ico.so $out/bangk-ico-devnet.so
         '';
       };
@@ -183,7 +183,7 @@
         name = "bangk-prg-mainnet";
         buildPhase = ''
           mkdir -p target && chmod -R 777 target/
-          # ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=MAINNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
+          ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=MAINNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
           ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=MAINNET" -v $(pwd):/mnt/code/ solana /bin/bash build-ico
         '';
         installPhase = ''
