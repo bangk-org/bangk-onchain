@@ -152,3 +152,38 @@ async fn duplicated_key_in_multisig() {
         "there was an unexpected error in the instruction"
     );
 }
+
+#[tokio::test]
+async fn use_duplicate_keys() {
+    let mut env = common::init_default().await;
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &PROGRAM_ID);
+
+    let admin1 = env.wallets["Admin 1"].pubkey();
+    let admin2 = env.wallets["Admin 1"].pubkey();
+    let admin3 = env.wallets["Admin 1"].pubkey();
+
+    let new_api_key = env.add_wallet("API 2").await;
+    let new_admin1 = env.add_wallet("Admin 5").await;
+    let new_admin2 = env.add_wallet("Admin 6").await;
+    let new_admin3 = env.add_wallet("Admin 7").await;
+    let new_admin4 = env.add_wallet("Admin 8").await;
+    let Ok(instruction) = update_admin_multisig(
+        &admin1,
+        &admin2,
+        &admin3,
+        &new_api_key,
+        &new_admin1,
+        &new_admin2,
+        &new_admin3,
+        &new_admin4,
+    ) else {
+        panic!("could not create instruction");
+    };
+    let res = env
+        .execute_transaction(&[instruction], &["Admin 1", "Admin 1", "Admin 1"])
+        .await;
+    assert!(
+        res.is_err_and(|err| err == Error::InvalidSigner),
+        "the transaction succeeded where it should have failed"
+    );
+}

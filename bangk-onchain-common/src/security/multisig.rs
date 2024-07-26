@@ -8,6 +8,8 @@
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
 
+use std::collections::HashSet;
+
 use bangk_macro::pda;
 use borsh::{BorshDeserialize, BorshSerialize};
 use shank::ShankType;
@@ -95,12 +97,21 @@ impl MultiSig {
         accounts: &[AccountInfo],
         level: OperationSecurityLevel,
     ) -> ProgramResult {
-        let n = level.required_keys();
-        if accounts.len() >= n as usize
-            && accounts
-                .iter()
-                .take(n as usize)
-                .all(|account| account.is_signer && self.keys.contains(account.key))
+        let n = level.required_keys() as usize;
+
+        // Get non-duplicated signers
+        let signers = accounts
+            .iter()
+            .take(n)
+            .map(|acc| (acc.is_signer, acc.key))
+            .collect::<HashSet<_>>();
+        if signers.len() < n {
+            return Err(Error::InvalidSigner.into());
+        }
+
+        if signers
+            .iter()
+            .all(|(signer, key)| *signer && self.keys.contains(key))
         {
             Ok(())
         } else {
