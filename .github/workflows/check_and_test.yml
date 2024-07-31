@@ -6,7 +6,7 @@ on:
   push:
 env:
   RUST_VERSION: "1.80.0"
-  SOLANA_VERSION: "v1.18.20"
+  SOLANA_VERSION: "v2.0.3"
   BANGK_MODE: "TESTING"
 jobs:
   setup:
