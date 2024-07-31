@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 11 July 2024 @ 13:47:03
+// Last modified: Wednesday 31 July 2024 @ 21:19:35
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -69,7 +69,7 @@ impl Environment {
     /// If the environment couldn't be created (API key was not parsed successfully for example)
     pub async fn new(
         program_id: Pubkey,
-        program: &str,
+        program: &'static str,
         entrypoint: Option<BuiltinFunctionWithContext>,
     ) -> Self {
         println!("Creating environment");

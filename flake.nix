@@ -49,7 +49,7 @@
         config.allowUnfree = true;
         overlays = [(import rust-overlay)];
       };
-      rustOverlay = pkgs.rust-bin.stable."1.75.0".default.override {
+      rustOverlay = pkgs.rust-bin.stable."1.80.0".default.override {
         extensions = ["rust-analyzer" "rust-src" "rust-docs" "llvm-tools"];
       };
       rustPretty = pkgs.rust-bin.stable."1.78.0".default; # llvm-cov-pretty doesn’t compile with a more recent version
@@ -322,6 +322,7 @@
         packages = with pkgs; [
           # Compilation
           mold # rust linker
+          protobuf
 
           # Solana from flake
           solana.packages.${system}.default

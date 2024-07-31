@@ -8,7 +8,7 @@ inputs:
   solana-version:
     description: 'Version of the solana tools to install'
     required: false
-    default: '1.18.20'
+    default: '2.0.3'
   install-solana:
     description: 'Determines if the Solana tools should be loaded'
     required: false
