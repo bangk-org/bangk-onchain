@@ -262,7 +262,7 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
                     /// If the given account does not contain the expected data.
                     // #[cfg(not(feature = "no-entrypoint"))]
                     pub fn from_account(account: &solana_program::account_info::AccountInfo)
-                        -> Result<Self, solana_program::program_error::ProgramError> {
+                        -> core::result::Result<Self, solana_program::program_error::ProgramError> {
                         let data = account.try_borrow_data()?;
                         let res = Self::try_from_slice(&data)?;
                         if res.pda_type != Self::PDA_TYPE {

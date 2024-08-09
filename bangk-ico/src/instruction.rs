@@ -19,6 +19,7 @@ use solana_program::{
 };
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 
+use crate::timelock::TransferFromReserveTimelock;
 use crate::{
     config::ConfigurationPda,
     investment::UserInvestmentPda,
@@ -101,7 +102,16 @@ pub struct LaunchBGKArgs {
 
 /// Transfer BGK out of Bangk's reserve account.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
-pub struct TransferFromReserveArgs {
+pub struct QueueTransferFromReserveArgs {
+    /// ATA to which the tokens will be transferred.
+    pub target: Pubkey,
+    /// Amount of tokens to transfer.
+    pub amount: u64,
+}
+
+/// Transfer BGK out of Bangk's reserve account.
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
+pub struct ExecuteTransferFromReserveArgs {
     /// Amount of tokens to transfer.
     pub amount: u64,
 }
@@ -114,7 +124,8 @@ pub enum BangkIcoInstruction {
     #[account(0, signer, writable, name="bangk", desc="Bangk signing account")]
     #[account(1, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(2, writable, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(3, name="system_program", desc="System Program")]
+    #[account(3, writable, name="transfer_from_reserve_timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
+    #[account(4, name="system_program", desc="System Program")]
     Initialize(InitializeArgs),
 
     /// Create the BGK mint and mint the tokens.
@@ -181,19 +192,27 @@ pub enum BangkIcoInstruction {
     #[account(10, name="ata_program", desc="Associated Token Account Program")]
     VestingRelease,
 
-    /// Transfer BGK from Bangk's reserve ATA.
+    /// Queues a transfer request from Bangk's reserve ATA.
     #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
     #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
     #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(4, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(5, writable, name="reserve_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
-    #[account(6, name="user", desc="Wallet of the user to whom the tokens will be transfered")]
-    #[account(7, writable, name="target_ata", desc="BGK ATA where the tokens will be transfered")]
-    #[account(8, name="system_program", desc="System Program")]
-    #[account(9, name="token_program", desc="SPL Token 2022 Program")]
-    #[account(10, name="ata_program", desc="Associated Token Account Program")]
-    TransferFromReserve(TransferFromReserveArgs),
+    #[account(4, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
+    #[account(5, name="system_program", desc="System Program")]
+    QueueTransferFromReserve(QueueTransferFromReserveArgs),
+
+    /// Executes a transfer BGK from Bangk's reserve ATA.
+    #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
+    #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
+    #[account(2, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
+    #[account(3, name="bgk_mint", desc="Mint of the BGK token")]
+    #[account(4, writable, name="reserve_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
+    #[account(5, name="user", desc="Wallet of the user to whom the tokens will be transfered")]
+    #[account(6, writable, name="target_ata", desc="BGK ATA where the tokens will be transfered")]
+    #[account(7, name="system_program", desc="System Program")]
+    #[account(8, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(9, name="ata_program", desc="Associated Token Account Program")]
+    ExecuteTransferFromReserve(ExecuteTransferFromReserveArgs),
 }
 
 /// Initializes the ICO program's configuration.
@@ -220,6 +239,9 @@ pub fn initialize(
 ) -> Result<Instruction, ProgramError> {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (transfer_timelock_pda, _timelock_bump) =
+        TransferFromReserveTimelock::get_address(&crate::ID);
+
     let args = InitializeArgs {
         unvesting,
         api_key: *api_key,
@@ -234,6 +256,7 @@ pub fn initialize(
             AccountMeta::new(*payer, true),
             AccountMeta::new(config_pda, false),
             AccountMeta::new(admin_keys_pda, false),
+            AccountMeta::new(transfer_timelock_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: borsh::to_vec(&BangkIcoInstruction::Initialize(args))?,
@@ -503,18 +526,18 @@ pub fn vesting_release(payer: &Pubkey, user: &Pubkey) -> Result<Instruction, Pro
     })
 }
 
-/// Create the instruction to set the BGK token launch date.
+/// Queues an instruction to transfer tokens from the reserve.
 ///
 /// # Parameters
 /// * `admin1` - Key of the payer and first signer of the instruction,
 /// * `admin2` - Key of the second signer of the instruction,
 /// * `admin2` - Key of the third signer of the instruction,
 /// * `target` - Target ATA (created if doesn't exist yet),
-/// * `amount` - Number of tokens to be released during the unvesting.
+/// * `amount` - Number of tokens to transfer.
 ///
 /// # Errors
 /// If instruction's data could not be serialized (so…never?)
-pub fn transfer_from_reserve(
+pub fn queue_transfer_from_reserve(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
@@ -523,6 +546,47 @@ pub fn transfer_from_reserve(
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
+    let (transfer_timelock_pda, _timelock_bump) =
+        TransferFromReserveTimelock::get_address(&crate::ID);
+    let target_ata =
+        get_associated_token_address_with_program_id(target, &mint_address, &spl_token_2022::ID);
+
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin1, true),
+            AccountMeta::new_readonly(*admin2, true),
+            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(transfer_timelock_pda, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: borsh::to_vec(&BangkIcoInstruction::QueueTransferFromReserve(
+            QueueTransferFromReserveArgs {
+                target: target_ata,
+                amount,
+            },
+        ))?,
+    })
+}
+
+/// Create the instruction to execute a time-locked transfer
+///
+/// # Parameters
+/// * `target` - Target ATA (created if doesn't exist yet),
+/// * `amount` - Number of tokens to be released during the unvesting.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn execute_transfer_from_reserve(
+    payer: &Pubkey,
+    target: &Pubkey,
+    amount: u64,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
+    let (transfer_timelock_pda, _timelock_bump) =
+        TransferFromReserveTimelock::get_address(&crate::ID);
     let reserve_ata = get_associated_token_address_with_program_id(
         &admin_keys_pda,
         &mint_address,
@@ -534,10 +598,9 @@ pub fn transfer_from_reserve(
     Ok(Instruction {
         program_id: crate::ID,
         accounts: vec![
-            AccountMeta::new(*admin1, true),
-            AccountMeta::new_readonly(*admin2, true),
-            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new(*payer, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(transfer_timelock_pda, false),
             AccountMeta::new(mint_address, false),
             AccountMeta::new(reserve_ata, false),
             AccountMeta::new_readonly(*target, false),
@@ -546,8 +609,8 @@ pub fn transfer_from_reserve(
             AccountMeta::new_readonly(spl_token_2022::ID, false),
             AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
-        data: borsh::to_vec(&BangkIcoInstruction::TransferFromReserve(
-            TransferFromReserveArgs { amount },
+        data: borsh::to_vec(&BangkIcoInstruction::ExecuteTransferFromReserve(
+            ExecuteTransferFromReserveArgs { amount },
         ))?,
     })
 }

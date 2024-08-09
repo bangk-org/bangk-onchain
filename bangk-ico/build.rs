@@ -52,6 +52,8 @@ fn write_testing_key(dest_path: &Path) {
     fs::write(
         dest_path,
         "
+/// Time to wait before executing a queued operation.
+pub const TIMELOCK_DELAY: i64 = 5; // 5 seconds
 /// Key used to initialize the program
 pub const INIT_KEY: Pubkey = solana_program::pubkey!(\"HH9PXuEgE36MgMDq9hhY4gLGh4CEMUKPqLoW8UrjaiX3\");
 ",
@@ -63,6 +65,8 @@ fn write_devnet_key(dest_path: &Path) {
     fs::write(
         dest_path,
         "
+/// Time to wait before executing a queued operation.
+pub const TIMELOCK_DELAY: i64 = 60*60; // 1 hour
 /// Key used to initialize the program
 pub const INIT_KEY: Pubkey = solana_program::pubkey!(\"HH9PXuEgE36MgMDq9hhY4gLGh4CEMUKPqLoW8UrjaiX3\");
 ",
@@ -74,6 +78,8 @@ fn write_mainnet_key(dest_path: &Path) {
     fs::write(
         dest_path,
         "
+/// Time to wait before executing a queued operation.
+pub const TIMELOCK_DELAY: i64 = 48 * 60 * 60; // 48 hours
 /// Key used to initialize the program
 pub const INIT_KEY: Pubkey = solana_program::pubkey!(\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\");
 ",

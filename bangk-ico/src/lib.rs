@@ -18,6 +18,7 @@ mod entrypoint;
 mod instruction;
 mod investment;
 mod processor;
+mod timelock;
 mod unvesting;
 
 // Only make public elements that would be useful.
@@ -29,6 +30,8 @@ pub use instruction::*;
 pub use investment::*;
 /// Handles the dispatch of the processing operations (only used in tests).
 pub use processor::process_instruction;
+/// `Timelock` delay.
+pub use processor::TIMELOCK_DELAY;
 /// Sets the rules for the unvesting.
 pub use unvesting::*;
 

@@ -44,10 +44,12 @@ use crate::{
     config::ConfigurationPda,
     instruction::{
         BangkIcoInstruction, CancelInvestmentArgs, InitializeArgs, LaunchBGKArgs, MintCreationArgs,
-        TransferFromReserveArgs, UpdateAdminMultisigArgs, UserInvestmentArgs,
+        UpdateAdminMultisigArgs, UserInvestmentArgs,
     },
     investment::{Investment, UserInvestment, UserInvestmentPda},
+    timelock::{TransferFromReserveTimelock, TransferFromReserveTimelockArgs},
     unvesting::UnvestingType,
+    ExecuteTransferFromReserveArgs, QueueTransferFromReserveArgs,
 };
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));
@@ -78,8 +80,11 @@ pub fn process_instruction(
         }
         BangkIcoInstruction::LaunchBGK(args) => launch_bgk(program_id, accounts, args),
         BangkIcoInstruction::VestingRelease => vesting_release(program_id, accounts),
-        BangkIcoInstruction::TransferFromReserve(args) => {
-            transfer_from_reserve(program_id, accounts, args)
+        BangkIcoInstruction::QueueTransferFromReserve(args) => {
+            queue_transfer_from_reserve(program_id, accounts, args)
+        }
+        BangkIcoInstruction::ExecuteTransferFromReserve(args) => {
+            execute_transfer_from_reserve(program_id, accounts, args)
         }
     }
 }
@@ -88,6 +93,7 @@ struct InitializeAccounts<'a> {
     bangk: AccountInfo<'a>,
     config: AccountInfo<'a>,
     admin_sig: AccountInfo<'a>,
+    timelock: AccountInfo<'a>,
     _system_program: AccountInfo<'a>,
 }
 
@@ -98,6 +104,7 @@ impl<'a> InitializeAccounts<'a> {
             bangk: next_account_info(accounts_iter)?.clone(),
             config: next_account_info(accounts_iter)?.clone(),
             admin_sig: next_account_info(accounts_iter)?.clone(),
+            timelock: next_account_info(accounts_iter)?.clone(),
             _system_program: next_account_info(accounts_iter)?.clone(),
         })
     }
@@ -171,6 +178,7 @@ fn initialize(
     // Special case here, we want to make sure there are no risks for double initialization
     let (_config_pda, config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (_admin_keys_pda, admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (_timelock_pda, timelock_bump) = TransferFromReserveTimelock::get_address(&crate::ID);
 
     // Saving the Configuration PDA on the chain.
     debug!("writing config PDA");
@@ -191,6 +199,10 @@ fn initialize(
     );
     let pda_admin = MultiSigPda::new(admin_bump, admin_sig);
     pda_admin.create(&ctx.admin_sig, &ctx.bangk, &crate::ID)?;
+
+    // Initializing the timelock PDAs
+    let timelock = TransferFromReserveTimelock::new(timelock_bump);
+    timelock.create(&ctx.timelock, &ctx.bangk, &crate::ID)?;
 
     msg!("ICO program successfully initialized");
     Ok(())
@@ -855,11 +867,52 @@ fn vesting_release(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     )
 }
 
-struct TransferFromReserveAccounts<'a> {
+struct QueueTransferFromReserveAccounts<'a> {
     admin1: AccountInfo<'a>,
     _admin2: AccountInfo<'a>,
     _admin3: AccountInfo<'a>,
     sig_admin: AccountInfo<'a>,
+    timelock: AccountInfo<'a>,
+    _program_system: AccountInfo<'a>,
+}
+
+impl<'a> QueueTransferFromReserveAccounts<'a> {
+    fn new(accounts: &[AccountInfo<'a>]) -> Result<Self, ProgramError> {
+        let accounts_iter = &mut accounts.iter();
+        Ok(Self {
+            admin1: next_account_info(accounts_iter)?.clone(),
+            _admin2: next_account_info(accounts_iter)?.clone(),
+            _admin3: next_account_info(accounts_iter)?.clone(),
+            sig_admin: next_account_info(accounts_iter)?.clone(),
+            timelock: next_account_info(accounts_iter)?.clone(),
+            _program_system: next_account_info(accounts_iter)?.clone(),
+        })
+    }
+}
+
+/// Transfer BGK tokens from Bangk's reserve.
+fn queue_transfer_from_reserve(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    args: QueueTransferFromReserveArgs,
+) -> ProgramResult {
+    let ctx = QueueTransferFromReserveAccounts::new(accounts)?;
+    msg!("Bangk: Queue tranfering BGK tokens from Bangk's reserve");
+
+    check_pda_owner!(program_id, ctx.sig_admin);
+    check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
+
+    let mut timelock_pda = TransferFromReserveTimelock::from_account(&ctx.timelock)?;
+    // Create the timelocked instruction
+    let timelock = TransferFromReserveTimelockArgs::new(args.target, args.amount)?;
+    timelock_pda.instructions.push(timelock);
+    timelock_pda.write(&ctx.timelock, &ctx.admin1)
+}
+
+struct ExecuteTransferFromReserveAccounts<'a> {
+    admin1: AccountInfo<'a>,
+    sig_admin: AccountInfo<'a>,
+    timelock: AccountInfo<'a>,
     mint_bgk: AccountInfo<'a>,
     ata_reserve: AccountInfo<'a>,
     user: AccountInfo<'a>,
@@ -869,14 +922,13 @@ struct TransferFromReserveAccounts<'a> {
     _program_ata: AccountInfo<'a>,
 }
 
-impl<'a> TransferFromReserveAccounts<'a> {
+impl<'a> ExecuteTransferFromReserveAccounts<'a> {
     fn new(accounts: &[AccountInfo<'a>]) -> Result<Self, ProgramError> {
         let accounts_iter = &mut accounts.iter();
         Ok(Self {
             admin1: next_account_info(accounts_iter)?.clone(),
-            _admin2: next_account_info(accounts_iter)?.clone(),
-            _admin3: next_account_info(accounts_iter)?.clone(),
             sig_admin: next_account_info(accounts_iter)?.clone(),
+            timelock: next_account_info(accounts_iter)?.clone(),
             mint_bgk: next_account_info(accounts_iter)?.clone(),
             ata_reserve: next_account_info(accounts_iter)?.clone(),
             user: next_account_info(accounts_iter)?.clone(),
@@ -889,16 +941,16 @@ impl<'a> TransferFromReserveAccounts<'a> {
 }
 
 /// Transfer BGK tokens from Bangk's reserve.
-fn transfer_from_reserve(
+fn execute_transfer_from_reserve(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    args: TransferFromReserveArgs,
+    args: ExecuteTransferFromReserveArgs,
 ) -> ProgramResult {
-    let ctx = TransferFromReserveAccounts::new(accounts)?;
+    let ctx = ExecuteTransferFromReserveAccounts::new(accounts)?;
     msg!("Bangk: Tranfering BGK tokens from Bangk's reserve");
 
     check_pda_owner!(program_id, ctx.sig_admin);
-    check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
+    check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Routine);
     check_ata_exists!(ctx.ata_reserve);
 
     debug!("integrity check on the target ATA");
@@ -915,6 +967,24 @@ fn transfer_from_reserve(
         );
         return Err(Error::InvalidAta.into());
     }
+
+    // Check that there’s a queued transfer, and remove it from the list if found
+    let mut timelock = TransferFromReserveTimelock::from_account(&ctx.timelock)?;
+    let Some(idx) = timelock
+        .instructions
+        .iter()
+        .position(|instr| instr.target == *ctx.ata_target.key && instr.amount == args.amount)
+    else {
+        return Err(Error::QueuedInstructionNotFound.into());
+    };
+    debug!("found matching queued operation");
+
+    if !timelock.instructions[idx].is_ready()? {
+        return Err(Error::QueuedInstructionNotReady.into());
+    }
+    timelock.instructions.remove(idx);
+    timelock.write(&ctx.timelock, &ctx.admin1)?;
+    debug!("queued operation is ready, proceeding");
 
     // Transferring the required amount of tokens from the reserve ATA to the target ATA
     let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;

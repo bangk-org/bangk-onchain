@@ -37,6 +37,8 @@ pub enum PdaType {
     ProjectDividendsTracker,
     /// A record for a client's investment.
     UserProjectInvestment,
+    /// A `Timelocked` instruction
+    TimelockInstruction,
 }
 
 /// Common properties of a Bangk PDA
@@ -61,6 +63,9 @@ pub trait BangkPda: BorshDeserialize + BorshSerialize {
     /// # Errors
     /// If the account couldn't be recovered or the PDA failed to be serialized.
     fn write<'a>(&self, account: &AccountInfo<'a>, payer: &AccountInfo<'a>) -> ProgramResult {
+        if account.lamports() == 0 {
+            return Err(Error::WriteInsteadOfCreatePda.into());
+        }
         let mut account_data = borsh::to_vec(self).map_err(|_err| Error::InvalidRawData)?;
         // test if different sizes
         if account_data.len() != account.data_len() {

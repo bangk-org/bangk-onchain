@@ -12,7 +12,7 @@
 #![allow(clippy::print_stdout)]
 
 use bangk_ico::{
-    create_mint, initialize, launch_bgk, process_instruction, transfer_from_reserve,
+    create_mint, initialize, launch_bgk, process_instruction, queue_transfer_from_reserve,
     user_investment, UnvestingScheme, UnvestingType,
 };
 use solana_program_test::processor;
@@ -194,7 +194,7 @@ pub async fn transfer_bgk_from_reserve(env: &mut Environment, user: &Pubkey, amo
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin4 = env.wallets["Admin 4"].pubkey();
     // Transfer the tokens
-    let Ok(instruction1) = transfer_from_reserve(&api, &admin2, &admin4, user, amount) else {
+    let Ok(instruction1) = queue_transfer_from_reserve(&api, &admin2, &admin4, user, amount) else {
         panic!("could not create instruction");
     };
     let res1 = env

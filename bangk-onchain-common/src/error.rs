@@ -140,6 +140,12 @@ pub enum Error {
     /// The project has already been initialized.
     #[display("the project has already been initialized")]
     ProjectAlreadyInitialized,
+    /// The desired queued instruction was not found
+    #[display("no matching queued instruction found")]
+    QueuedInstructionNotFound,
+    /// The queued instruction is not yet ready to be executed
+    #[display("delay for queued instruction not elapsed")]
+    QueuedInstructionNotReady,
     /// The rent exemption could not be retrieved from an account to close.
     #[display("the rent exemption couldn't be retrieved")]
     RentExemptionRetrieval,
@@ -155,6 +161,9 @@ pub enum Error {
     /// An unknown error has occurred (should not happen obviously, check the logs…)
     #[display("unknown error")]
     UnknownError,
+    /// Tried to write on a non-existing PDA instead of creating it
+    #[display("tried to write on a non-existing PDA instead of creating it")]
+    WriteInsteadOfCreatePda,
 }
 
 impl From<Error> for ProgramError {
@@ -206,6 +215,8 @@ impl From<u32> for Error {
             x if x == Self::IntegerOverflow as u32 => Self::IntegerOverflow,
             x if x == Self::PendingPayments as u32 => Self::PendingPayments,
             x if x == Self::ProjectAlreadyInitialized as u32 => Self::ProjectAlreadyInitialized,
+            x if x == Self::QueuedInstructionNotFound as u32 => Self::QueuedInstructionNotFound,
+            x if x == Self::QueuedInstructionNotReady as u32 => Self::QueuedInstructionNotReady,
             x if x == Self::RentExemptionRetrieval as u32 => Self::RentExemptionRetrieval,
             x if x == Self::UnecessaryExchange as u32 => Self::UnecessaryExchange,
             x if x == Self::UniqueOperationAlreadyExecuted as u32 => {
