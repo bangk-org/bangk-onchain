@@ -12,12 +12,12 @@
 #![allow(clippy::panic)]
 
 pub mod common;
-use bangk_ico::{launch_bgk, ConfigurationPda};
+use bangk_ico::{launch_bgk, ConfigurationPda, UnvestingType};
 use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
     Error,
 };
-use common::{PROGRAM_ID, TOTAL_BGK_TOKENS};
+use common::{add_investment, PROGRAM_ID, TOTAL_BGK_TOKENS};
 use solana_program_test::tokio;
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
 use spl_associated_token_account::{
@@ -49,7 +49,16 @@ async fn default() {
         &spl_token_2022::ID,
     );
 
-    // Create the investment
+    // Add a dummy investment
+    add_investment(
+        &mut env,
+        &Pubkey::new_unique(),
+        AMOUNT,
+        UnvestingType::TeamFounders,
+        None,
+    )
+    .await;
+
     let Ok(instruction1) = launch_bgk(&api, &admin2, &admin4, TIMESTAMP, AMOUNT) else {
         panic!("could not create instruction");
     };
@@ -78,6 +87,16 @@ async fn double_launch() {
     let api = env.wallets["API"].pubkey();
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin4 = env.wallets["Admin 4"].pubkey();
+
+    // Add a dummy investment
+    add_investment(
+        &mut env,
+        &Pubkey::new_unique(),
+        AMOUNT,
+        UnvestingType::TeamFounders,
+        None,
+    )
+    .await;
 
     // Create the investment
     let Ok(instruction1) = launch_bgk(&api, &admin2, &admin4, TIMESTAMP, AMOUNT) else {
@@ -119,6 +138,16 @@ async fn ata_already_exists() {
         res1.is_ok(),
         "there was an unexpected error in the instruction"
     );
+
+    // Add a dummy investment
+    add_investment(
+        &mut env,
+        &Pubkey::new_unique(),
+        AMOUNT,
+        UnvestingType::TeamFounders,
+        None,
+    )
+    .await;
 
     // Launch the token
     let Ok(instruction2) = launch_bgk(&api, &admin2, &admin4, TIMESTAMP, AMOUNT) else {

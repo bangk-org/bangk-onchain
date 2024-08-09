@@ -25,7 +25,6 @@ use spl_associated_token_account::get_associated_token_address_with_program_id;
 const INVEST_TYPE1: UnvestingType = UnvestingType::TeamFounders;
 const INVEST_TYPE2: UnvestingType = UnvestingType::PublicSells2;
 const INVEST_TYPE3: UnvestingType = UnvestingType::PublicSells3;
-const TOTAL_TOKENS: u64 = 50_000_000_000_000;
 const INVESTED_AMOUNT: u64 = 1_000_000_000_000;
 const WEEK: i64 = 7 * 86_400;
 
@@ -62,7 +61,7 @@ async fn before_initial() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - i64::from(scheme.start) * WEEK + 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT,
     )
     .await;
 
@@ -104,7 +103,7 @@ async fn before_initial() {
     assert_eq!(env.get_token_amount(&user_ata).await, None);
     assert_eq!(
         env.get_token_amount(&invested_ata).await,
-        Some(TOTAL_TOKENS)
+        Some(INVESTED_AMOUNT)
     );
 }
 
@@ -122,7 +121,7 @@ async fn initial() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - i64::from(scheme.start) * WEEK - 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT,
     )
     .await;
 
@@ -165,7 +164,7 @@ async fn initial() {
     assert_eq!(env.get_token_amount(&user_ata).await, Some(target));
     assert_eq!(
         env.get_token_amount(&invested_ata).await,
-        Some(TOTAL_TOKENS - target)
+        Some(INVESTED_AMOUNT - target)
     );
 }
 
@@ -183,7 +182,7 @@ async fn one_week_in() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - (i64::from(scheme.start) + 1) * WEEK - 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT,
     )
     .await;
 
@@ -227,7 +226,7 @@ async fn one_week_in() {
     assert_eq!(env.get_token_amount(&user_ata).await, Some(target));
     assert_eq!(
         env.get_token_amount(&invested_ata).await,
-        Some(TOTAL_TOKENS - target)
+        Some(INVESTED_AMOUNT - target)
     );
 }
 
@@ -245,7 +244,7 @@ async fn last_week() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - (i64::from(scheme.duration) - 1) * WEEK - 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT,
     )
     .await;
 
@@ -291,7 +290,7 @@ async fn last_week() {
     assert_eq!(env.get_token_amount(&user_ata).await, Some(target));
     assert_eq!(
         env.get_token_amount(&invested_ata).await,
-        Some(TOTAL_TOKENS - target)
+        Some(INVESTED_AMOUNT - target)
     );
 }
 
@@ -309,7 +308,7 @@ async fn after_end() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - i64::from(scheme.duration) * WEEK - 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT,
     )
     .await;
 
@@ -352,7 +351,7 @@ async fn after_end() {
     assert_eq!(env.get_token_amount(&user_ata).await, Some(target));
     assert_eq!(
         env.get_token_amount(&invested_ata).await,
-        Some(TOTAL_TOKENS - target)
+        Some(INVESTED_AMOUNT - target)
     );
 }
 
@@ -379,7 +378,7 @@ async fn two_types() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - i64::from(scheme1.start + 2) * WEEK - 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT * 2,
     )
     .await;
 
@@ -436,7 +435,7 @@ async fn two_types() {
     );
     assert_eq!(
         env.get_token_amount(&invested_ata).await,
-        Some(TOTAL_TOKENS - target1 - target2)
+        Some(INVESTED_AMOUNT * 2 - target1 - target2)
     );
 }
 
@@ -454,7 +453,7 @@ async fn non_admin_payer() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - (i64::from(scheme.start) + 1) * WEEK - 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT,
     )
     .await;
 
@@ -485,7 +484,7 @@ async fn twice() {
     launch_tokens(
         &mut env,
         chrono::Utc::now().timestamp() - (i64::from(scheme.start) + 1) * WEEK - 3600,
-        TOTAL_TOKENS,
+        INVESTED_AMOUNT,
     )
     .await;
 

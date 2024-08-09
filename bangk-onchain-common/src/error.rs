@@ -86,6 +86,9 @@ pub enum Error {
     /// Invalid freeze / unfreeze status.
     #[display("the freeze / unfreeze status is invalid")]
     InvalidFreezeStatus,
+    /// Invalid invested amount
+    #[display("the amount to transfer to the invested ata does not match the invested amount")]
+    InvalidInvestedAmount,
     /// The given PDA is not own by this program.
     #[display("a PDA's owner is not Bangk's program")]
     InvalidOwner,

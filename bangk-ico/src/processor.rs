@@ -474,7 +474,9 @@ fn user_investment(
     check_pda_owner!(program_id, ctx.config, ctx.sig_admin, ctx.investment);
     check_signers!(accounts, &ctx.sig_admin);
 
-    let config = ConfigurationPda::from_account(&ctx.config)?;
+    let mut config = ConfigurationPda::from_account(&ctx.config)?;
+    config.amount_invested = config.amount_invested.saturating_add(args.amount);
+    config.write(&ctx.config, &ctx.api)?;
 
     if args.invest_kind != UnvestingType::AdvisersPartners
         && config.launch_date > 0
@@ -537,7 +539,9 @@ fn cancel_investment(
     check_pda_owner!(program_id, ctx.config, ctx.sig_admin, ctx.investment);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Sensitive);
 
-    let config = ConfigurationPda::from_account(&ctx.config)?;
+    let mut config = ConfigurationPda::from_account(&ctx.config)?;
+    config.amount_invested = config.amount_invested.saturating_sub(args.amount);
+    config.write(&ctx.config, &ctx.admin1)?;
 
     if config.launch_date > 0 {
         return Err(Error::CancelIcoInvestmentAfterLaunch.into());
@@ -639,6 +643,11 @@ fn launch_bgk(program_id: &Pubkey, accounts: &[AccountInfo], args: LaunchBGKArgs
     if ctx.ata_invested.lamports() > 0 {
         msg!("Invested ATA already exists: aborting to prevent any risk.");
         return Err(Error::AccountAlreadyExists.into());
+    }
+
+    if config.amount_invested != args.amount {
+        msg!("The number of tokens to transfer to invested ATA does not match the amount invested ({})", config.amount_invested);
+        return Err(Error::InvalidInvestedAmount.into());
     }
 
     config.launch_date = args.timestamp;

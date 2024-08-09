@@ -138,7 +138,7 @@ pub enum BangkIcoInstruction {
 
     /// Create or update a User's Investment.
     #[account(0, signer, writable, name="payer", desc="Signer and fee payer for the instruction")]
-    #[account(1, name="config_pda", desc="The PDA in which the program's configuration is stored")]
+    #[account(1, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(2, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
     #[account(3, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
     #[account(4, name="system_program", desc="System Program")]
@@ -147,7 +147,7 @@ pub enum BangkIcoInstruction {
     /// Cancel a user's investment.
     #[account(0, signer, writable, name="admin1", desc="Signer and fee payer for the instruction")]
     #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
-    #[account(2, name="config_pda", desc="The PDA in which the program's configuration is stored")]
+    #[account(2, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
     #[account(4, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
     #[account(5, name="system_program", desc="System Program")]
@@ -353,7 +353,7 @@ pub fn user_investment(
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*payer, true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
             AccountMeta::new(investment_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),

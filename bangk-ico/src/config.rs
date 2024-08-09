@@ -26,6 +26,8 @@ pub struct ConfigurationPda {
     pub admin_multisig: Pubkey,
     /// Date of the BGK launch.
     pub launch_date: i64,
+    /// Amount of invested tokens
+    pub amount_invested: u64,
 }
 
 impl ConfigurationPda {
@@ -42,6 +44,7 @@ impl ConfigurationPda {
             unvesting: map,
             admin_multisig: *admin,
             launch_date: 0,
+            amount_invested: 0,
         }
     }
 }
