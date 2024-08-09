@@ -21,19 +21,19 @@ categories = ["cryptography::cryptocurrencies", "finance"]
 [workspace.dependencies]
 borsh = { version = "1.5.1", features = ["derive"] }
 chrono = { version = "0.4.38", features = ["unstable-locales", "serde"] }
-derive_more = { version = "1.0.0-beta", features = ["from", "display"] }
+derive_more = { version = "1.0.0", features = ["from", "display"] }
 num-derive = "0.4.1"
 num-traits = "0.2.19"
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { version = "1.0.205", features = ["derive"] }
 shank = "0.4.2"
-solana-client = "=1.18.20"
-solana-program = "=1.18.20"
-solana-program-runtime = "=1.18.20"
-solana-program-test = "=1.18.20"
-solana-rpc-client-api = "=1.18.20"
-solana-sdk = { version = "=1.18.20" }
+solana-client = "=1.18.22"
+solana-program = "=1.18.22"
+solana-program-runtime = "=1.18.22"
+solana-program-test = "=1.18.22"
+solana-rpc-client-api = "=1.18.22"
+solana-sdk = { version = "=1.18.22" }
 solana-security-txt = "1.1.1"
-solana-transaction-status = "=1.18.20"
+solana-transaction-status = "=1.18.22"
 spl-associated-token-account = { version = "2.2.0", features = [
   "no-entrypoint",
 ] }
