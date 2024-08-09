@@ -30,10 +30,6 @@ use crate::{
 pub struct InitializeArgs {
     /// Definition of the unvesting schemes.
     pub unvesting: Vec<UnvestingScheme>,
-    /// Bump for the configuration PDA.
-    pub config_bump: u8,
-    /// Bump for the address of the PDA for he admin `MultiSig`.
-    pub admin_bump: u8,
     /// First key in the Admin `MultiSig` (it's the API key)
     pub api_key: Pubkey,
     /// Second key in the Admin `MultiSig`
@@ -222,12 +218,10 @@ pub fn initialize(
     admin3: &Pubkey,
     admin4: &Pubkey,
 ) -> Result<Instruction, ProgramError> {
-    let (config_pda, config_bump) = ConfigurationPda::get_address(&crate::ID);
-    let (admin_keys_pda, admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let args = InitializeArgs {
         unvesting,
-        config_bump,
-        admin_bump,
         api_key: *api_key,
         admin1: *admin1,
         admin2: *admin2,

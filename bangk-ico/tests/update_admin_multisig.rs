@@ -156,7 +156,7 @@ async fn duplicated_key_in_multisig() {
 #[tokio::test]
 async fn use_duplicate_keys() {
     let mut env = common::init_default().await;
-    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &PROGRAM_ID);
+    let (_admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &PROGRAM_ID);
 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let admin2 = env.wallets["Admin 1"].pubkey();

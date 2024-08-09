@@ -166,9 +166,13 @@ fn initialize(
         return Err(Error::DuplicatedKeyInMultisigDefinition.into());
     }
 
+    // Special case here, we want to make sure there are no risks for double initialization
+    let (_config_pda, config_bump) = ConfigurationPda::get_address(&crate::ID);
+    let (_admin_keys_pda, admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+
     // Saving the Configuration PDA on the chain.
     debug!("writing config PDA");
-    let config = ConfigurationPda::new(args.config_bump, &args.unvesting, ctx.admin_sig.key);
+    let config = ConfigurationPda::new(config_bump, &args.unvesting, ctx.admin_sig.key);
     config.create(&ctx.config, &ctx.bangk, &crate::ID)?;
 
     // Saving the Admin Keys PDA on the chain
@@ -183,7 +187,7 @@ fn initialize(
             args.admin4,
         ],
     );
-    let pda_admin = MultiSigPda::new(args.admin_bump, admin_sig);
+    let pda_admin = MultiSigPda::new(admin_bump, admin_sig);
     pda_admin.create(&ctx.admin_sig, &ctx.bangk, &crate::ID)?;
 
     msg!("ICO program successfully initialized");
