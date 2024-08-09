@@ -28,7 +28,9 @@ use solana_program::{
     system_instruction::create_account,
     sysvar::Sysvar as _,
 };
-use spl_associated_token_account::instruction::create_associated_token_account;
+use spl_associated_token_account::{
+    get_associated_token_address_with_program_id, instruction::create_associated_token_account,
+};
 use spl_token_2022::{
     extension::{metadata_pointer, ExtensionType},
     instruction::{initialize_mint2, mint_to, set_authority, transfer_checked, AuthorityType},
@@ -347,6 +349,22 @@ fn mint_creation(
         ],
         &[seeds.as_slice()],
     )?;
+
+    debug!("integrity check on the target ATA");
+    let target_ata = get_associated_token_address_with_program_id(
+        ctx.sig_admin.key,
+        ctx.mint_bgk.key,
+        &spl_token_2022::ID,
+    );
+
+    if target_ata != *ctx.ata_reserve.key {
+        msg!(
+            "the given target ATA was not the expected one ({})",
+            target_ata
+        );
+        return Err(Error::InvalidAta.into());
+    }
+
     debug!("Minting tokens");
     invoke_signed(
         &mint_to(
