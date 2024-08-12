@@ -3,7 +3,7 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 20:47:33
+// Last modified: Monday 12 August 2024 @ 16:51:43
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -42,7 +42,7 @@ pub enum PdaType {
 }
 
 /// Common properties of a Bangk PDA
-pub trait BangkPda: BorshDeserialize + BorshSerialize {
+pub trait BangkPda<'a>: BorshDeserialize + BorshSerialize {
     /// The type of the PDA
     const PDA_TYPE: PdaType;
 
@@ -55,6 +55,12 @@ pub trait BangkPda: BorshDeserialize + BorshSerialize {
     /// Get the seeds used to sign the PDA's address.
     fn seeds(&self) -> Vec<Vec<u8>>;
 
+    /// Get the account on which the PDA is saved.
+    ///
+    /// # Errors
+    /// If the account is not set
+    fn get_account(&self) -> Result<&AccountInfo<'a>, crate::Error>;
+
     /// Update the PDA's data.
     ///
     /// # Parameters
@@ -62,7 +68,8 @@ pub trait BangkPda: BorshDeserialize + BorshSerialize {
     ///
     /// # Errors
     /// If the account couldn't be recovered or the PDA failed to be serialized.
-    fn write<'a>(&self, account: &AccountInfo<'a>, payer: &AccountInfo<'a>) -> ProgramResult {
+    fn write(&self, payer: &AccountInfo<'a>) -> ProgramResult {
+        let account = self.get_account()?;
         if account.lamports() == 0 {
             return Err(Error::WriteInsteadOfCreatePda.into());
         }
@@ -94,7 +101,7 @@ pub trait BangkPda: BorshDeserialize + BorshSerialize {
     /// # Errors
     /// If the account couldn't be recovered, the data failed to be
     /// serialized, rent could not be computed, etc.
-    fn create<'a>(
+    fn create(
         &self,
         account: &AccountInfo<'a>,
         payer: &AccountInfo<'a>,
@@ -141,7 +148,8 @@ pub trait BangkPda: BorshDeserialize + BorshSerialize {
     /// # Errors
     /// If the account couldn't be recovered, data overwrite failed, etc.
     #[allow(clippy::collection_is_never_read)]
-    fn delete<'a>(&self, account: &AccountInfo<'a>, payer: &AccountInfo<'a>) -> ProgramResult {
+    fn delete(&self, payer: &AccountInfo<'a>) -> ProgramResult {
+        let account = self.get_account()?;
         if account.lamports() == 0 {
             return Ok(());
         }

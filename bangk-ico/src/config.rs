@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 21:31:29
+// Last modified: Monday 12 August 2024 @ 16:48:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -30,7 +30,7 @@ pub struct ConfigurationPda {
     pub amount_invested: u64,
 }
 
-impl ConfigurationPda {
+impl<'a> ConfigurationPda<'a> {
     /// Creates a new configuration PDA
     #[must_use]
     pub fn new(bump: u8, unvesting: &[UnvestingScheme], admin: &Pubkey) -> Self {
@@ -41,6 +41,7 @@ impl ConfigurationPda {
         Self {
             pda_type: Self::PDA_TYPE,
             bump,
+            account: None,
             unvesting: map,
             admin_multisig: *admin,
             launch_date: 0,

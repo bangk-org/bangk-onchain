@@ -3,18 +3,18 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 22:33:05
+// Last modified: Monday 12 August 2024 @ 16:47:55
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
 
 use darling::{ast::NestedMeta, util::parse_expr, Error, FromMeta};
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use syn::{
     parse::Parser, parse_macro_input, DeriveInput, Expr, ExprField, ExprLit, ExprPath, Ident,
-    Member,
+    Lifetime, LifetimeParam, Member,
 };
 
 #[derive(Debug, FromMeta)]
@@ -206,7 +206,22 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
                         })
                         .unwrap(),
                 );
+                fields.named.insert(
+                    2,
+                    syn::Field::parse_named
+                        .parse2(quote! {
+                            /// Account where the PDA is stored, will not be serialized
+                            #[borsh(skip)]
+                            pub account: Option<solana_program::account_info::AccountInfo<'a>>
+                        })
+                        .unwrap(),
+                );
             }
+            ast.generics
+                .params
+                .push(syn::GenericParam::Lifetime(LifetimeParam::new(
+                    Lifetime::new("'a", Span::mixed_site()),
+                )));
 
             let get_address_fn = get_address_fn_str(
                 &crate_ident,
@@ -223,7 +238,7 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
                 #ast
 
                 #[automatically_derived]
-                impl BangkPda for #name {
+                impl<'a> BangkPda<'a> for #name<'a> {
 
                     const PDA_TYPE: PdaType = #kind;
 
@@ -233,6 +248,10 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
 
                     fn is_valid(&self) -> bool {
                         self.pda_type == Self::PDA_TYPE
+                    }
+
+                    fn get_account(&self) -> core::result::Result<&solana_program::account_info::AccountInfo<'a>, #crate_ident::Error> {
+                        self.account.as_ref().ok_or(#crate_ident::Error::MissingPDAAccount)
                     }
 
                     #[must_use]
@@ -249,7 +268,7 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
                 }
 
                 #[automatically_derived]
-                impl #name {
+                impl<'a> #name<'a> {
                     #[doc = #get_address_doc]
                     #[must_use]
                     #get_address_fn
@@ -261,10 +280,11 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
                     /// # Errors
                     /// If the given account does not contain the expected data.
                     // #[cfg(not(feature = "no-entrypoint"))]
-                    pub fn from_account(account: &solana_program::account_info::AccountInfo)
+                    pub fn from_account(account: &solana_program::account_info::AccountInfo<'a>)
                         -> core::result::Result<Self, solana_program::program_error::ProgramError> {
                         let data = account.try_borrow_data()?;
-                        let res = Self::try_from_slice(&data)?;
+                        let mut res = Self::try_from_slice(&data)?;
+                        res.account = Some(account.clone());
                         if res.pda_type != Self::PDA_TYPE {
                             return Err(#crate_ident::Error::InvalidPdaType.into());
                         }

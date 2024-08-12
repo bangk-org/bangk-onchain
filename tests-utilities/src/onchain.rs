@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 11 July 2024 @ 13:47:03
+// Last modified: Monday 12 August 2024 @ 16:46:43
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -240,9 +240,9 @@ impl Environment {
     ///
     /// # Errors
     /// If the given account does not contain the expected data.
-    pub async fn from_account<T>(&mut self, account: &Pubkey) -> Option<T>
+    pub async fn from_account<'a, T>(&mut self, account: &Pubkey) -> Option<T>
     where
-        T: BorshDeserialize + BangkPda + Debug,
+        T: BorshDeserialize + BangkPda<'a> + Debug,
     {
         let data = self.get_account(account).await?.data;
         // println!("Got data: {data:?}");

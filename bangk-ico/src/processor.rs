@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 20:47:48
+// Last modified: Monday 12 August 2024 @ 15:10:21
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -47,7 +47,7 @@ use crate::{
         UpdateAdminMultisigArgs, UserInvestmentArgs,
     },
     investment::{Investment, UserInvestment, UserInvestmentPda},
-    timelock::{TransferFromReserveTimelock, TransferFromReserveTimelockArgs},
+    timelock::{Timelock, TimelockPda},
     unvesting::UnvestingType,
     ExecuteTransferFromReserveArgs, QueueTransferFromReserveArgs,
 };
@@ -178,7 +178,7 @@ fn initialize(
     // Special case here, we want to make sure there are no risks for double initialization
     let (_config_pda, config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (_admin_keys_pda, admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let (_timelock_pda, timelock_bump) = TransferFromReserveTimelock::get_address(&crate::ID);
+    let (_timelock_pda, timelock_bump) = TimelockPda::get_address(&crate::ID);
 
     // Saving the Configuration PDA on the chain.
     debug!("writing config PDA");
@@ -201,7 +201,7 @@ fn initialize(
     pda_admin.create(&ctx.admin_sig, &ctx.bangk, &crate::ID)?;
 
     // Initializing the timelock PDAs
-    let timelock = TransferFromReserveTimelock::new(timelock_bump);
+    let timelock = TimelockPda::new(timelock_bump);
     timelock.create(&ctx.timelock, &ctx.bangk, &crate::ID)?;
 
     msg!("ICO program successfully initialized");
@@ -469,7 +469,7 @@ fn update_admin_multisig(
         args.admin3,
         args.admin4,
     ];
-    admin_sig.write(&ctx.sig_admin, &ctx.admin1)
+    admin_sig.write(&ctx.admin1)
 }
 
 struct UserInvestmentAccounts<'a> {
@@ -506,7 +506,7 @@ fn user_investment(
 
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
     config.amount_invested = config.amount_invested.saturating_add(args.amount);
-    config.write(&ctx.config, &ctx.api)?;
+    config.write(&ctx.api)?;
 
     if args.invest_kind != UnvestingType::AdvisersPartners
         && config.launch_date > 0
@@ -530,7 +530,7 @@ fn user_investment(
             amount_bought: args.amount,
             amount_released: 0,
         });
-        pda.write(&ctx.investment, &ctx.api)
+        pda.write(&ctx.api)
     }
 }
 
@@ -571,7 +571,7 @@ fn cancel_investment(
 
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
     config.amount_invested = config.amount_invested.saturating_sub(args.amount);
-    config.write(&ctx.config, &ctx.admin1)?;
+    config.write(&ctx.admin1)?;
 
     if config.launch_date > 0 {
         return Err(Error::CancelIcoInvestmentAfterLaunch.into());
@@ -616,10 +616,10 @@ fn cancel_investment(
 
     // Save the PDA or delete it if there are no investments left
     if investments.is_empty() {
-        pda.delete(&ctx.investment, &ctx.admin1)
+        pda.delete(&ctx.admin1)
     } else {
         pda.investment.investments = investments;
-        pda.write(&ctx.investment, &ctx.admin1)
+        pda.write(&ctx.admin1)
     }
 }
 
@@ -681,7 +681,7 @@ fn launch_bgk(program_id: &Pubkey, accounts: &[AccountInfo], args: LaunchBGKArgs
     }
 
     config.launch_date = args.timestamp;
-    config.write(&ctx.config, &ctx.admin1)?;
+    config.write(&ctx.admin1)?;
 
     // Transferring the required amount of tokens from the reserve ATA to the invested ATA
     let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
@@ -816,7 +816,7 @@ fn vesting_release(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     if to_release == 0 {
         return Ok(());
     }
-    investment.write(&ctx.investment, &ctx.api)?;
+    investment.write(&ctx.api)?;
 
     // Transferring the required amount of tokens from the invested ATA to the user's ATA
     if ctx.ata_user.lamports() == 0 {
@@ -902,11 +902,11 @@ fn queue_transfer_from_reserve(
     check_pda_owner!(program_id, ctx.sig_admin);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
 
-    let mut timelock_pda = TransferFromReserveTimelock::from_account(&ctx.timelock)?;
+    let mut timelock_pda = TimelockPda::from_account(&ctx.timelock)?;
     // Create the timelocked instruction
-    let timelock = TransferFromReserveTimelockArgs::new(args.target, args.amount)?;
+    let timelock = Timelock::transfer_from_reserve(args.target, args.amount)?;
     timelock_pda.instructions.push(timelock);
-    timelock_pda.write(&ctx.timelock, &ctx.admin1)
+    timelock_pda.write(&ctx.admin1)
 }
 
 struct ExecuteTransferFromReserveAccounts<'a> {
@@ -969,21 +969,8 @@ fn execute_transfer_from_reserve(
     }
 
     // Check that there’s a queued transfer, and remove it from the list if found
-    let mut timelock = TransferFromReserveTimelock::from_account(&ctx.timelock)?;
-    let Some(idx) = timelock
-        .instructions
-        .iter()
-        .position(|instr| instr.target == *ctx.ata_target.key && instr.amount == args.amount)
-    else {
-        return Err(Error::QueuedInstructionNotFound.into());
-    };
-    debug!("found matching queued operation");
-
-    if !timelock.instructions[idx].is_ready()? {
-        return Err(Error::QueuedInstructionNotReady.into());
-    }
-    timelock.instructions.remove(idx);
-    timelock.write(&ctx.timelock, &ctx.admin1)?;
+    let mut timelock = TimelockPda::from_account(&ctx.timelock)?;
+    timelock.process_transfer_from_reserve(ctx.ata_target.key, args.amount, &ctx.admin1)?;
     debug!("queued operation is ready, proceeding");
 
     // Transferring the required amount of tokens from the reserve ATA to the target ATA

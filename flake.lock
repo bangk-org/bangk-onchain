@@ -3,11 +3,11 @@
     "advisory-db": {
       "flake": false,
       "locked": {
-        "lastModified": 1721864173,
-        "narHash": "sha256-tQn2ZPLAH6u2nAfV8Ac/2HPS5giBi0iceCp4g9SqWAU=",
+        "lastModified": 1723137097,
+        "narHash": "sha256-Q/TeuIV610BJ39UkP4zRm6pG6BWEaOCih/WXNR2V9rk=",
         "owner": "rustsec",
         "repo": "advisory-db",
-        "rev": "af0e1b678a23ebd04efa0d0f63f98ad46781077d",
+        "rev": "1d209d3f18c740f104380e988b5aa8eb360190d1",
         "type": "github"
       },
       "original": {
@@ -23,11 +23,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1721842668,
-        "narHash": "sha256-k3oiD2z2AAwBFLa4+xfU+7G5fisRXfkvrMTCJrjZzXo=",
+        "lastModified": 1722960479,
+        "narHash": "sha256-NhCkJJQhD5GUib8zN9JrmYGMwt4lCRp6ZVNzIiYCl0Y=",
         "owner": "ipetkov",
         "repo": "crane",
-        "rev": "529c1a0b1f29f0d78fa3086b8f6a134c71ef3aaf",
+        "rev": "4c6c77920b8d44cd6660c1621dea6b3fc4b4c4f4",
         "type": "github"
       },
       "original": {
@@ -56,11 +56,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1721933792,
-        "narHash": "sha256-zYVwABlQnxpbaHMfX6Wt9jhyQstFYwN2XjleOJV3VVg=",
+        "lastModified": 1723221148,
+        "narHash": "sha256-7pjpeQlZUNQ4eeVntytU3jkw9dFK3k1Htgk2iuXjaD8=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "2122a9b35b35719ad9a395fe783eabb092df01b1",
+        "rev": "154bcb95ad51bc257c2ce4043a725de6ca700ef6",
         "type": "github"
       },
       "original": {
@@ -87,11 +87,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1721960387,
-        "narHash": "sha256-o21ax+745ETGXrcgc/yUuLw1SI77ymp3xEpJt+w/kks=",
+        "lastModified": 1723429325,
+        "narHash": "sha256-4x/32xTCd+xCwFoI/kKSiCr5LQA2ZlyTRYXKEni5HR8=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "9cbf831c5b20a53354fc12758abd05966f9f1699",
+        "rev": "65e3dc0fe079fe8df087cd38f1fe6836a0373aad",
         "type": "github"
       },
       "original": {
@@ -108,11 +108,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1721960387,
-        "narHash": "sha256-o21ax+745ETGXrcgc/yUuLw1SI77ymp3xEpJt+w/kks=",
+        "lastModified": 1723429325,
+        "narHash": "sha256-4x/32xTCd+xCwFoI/kKSiCr5LQA2ZlyTRYXKEni5HR8=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "9cbf831c5b20a53354fc12758abd05966f9f1699",
+        "rev": "65e3dc0fe079fe8df087cd38f1fe6836a0373aad",
         "type": "github"
       },
       "original": {
@@ -132,20 +132,34 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "rust-overlay": "rust-overlay_2"
+        "rust-overlay": "rust-overlay_2",
+        "solana-sdk": "solana-sdk"
       },
       "locked": {
-        "lastModified": 1721993205,
-        "narHash": "sha256-u4ehIfZinop8QeNysUJpD8WqtB1cxzgUTTJ/duNru8U=",
+        "lastModified": 1723458604,
+        "narHash": "sha256-CqH5Bvk5yz/E1szppeCMoq8ccxY5OZoWIcgXjrT6I00=",
         "owner": "VincentBerthier",
         "repo": "solana",
-        "rev": "72c295de691d19cea98d4e2b32d53845584efe06",
+        "rev": "c7676ae4757b0976faba486a7e016834a7a35485",
         "type": "github"
       },
       "original": {
         "owner": "VincentBerthier",
         "repo": "solana",
         "type": "github"
+      }
+    },
+    "solana-sdk": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1723161461,
+        "narHash": "sha256-2RX8qDaGrubWFfOgvKSAbrSwfS6PoeItHoz51z04YdU=",
+        "type": "tarball",
+        "url": "https://github.com/anza-xyz/agave/releases/download/v1.18.22/sbf-sdk.tar.bz2"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/anza-xyz/agave/releases/download/v1.18.22/sbf-sdk.tar.bz2"
       }
     },
     "systems": {

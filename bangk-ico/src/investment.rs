@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 20:49:36
+// Last modified: Monday 12 August 2024 @ 16:39:22
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -89,7 +89,7 @@ pub struct UserInvestmentPda {
     pub investment: UserInvestment,
 }
 
-impl UserInvestmentPda {
+impl<'a> UserInvestmentPda<'a> {
     /// Create a new Account for the definition of Freeze Keys.
     ///
     /// # Parameters
@@ -100,6 +100,7 @@ impl UserInvestmentPda {
         Self {
             pda_type: Self::PDA_TYPE,
             bump,
+            account: None,
             investment,
         }
     }

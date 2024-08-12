@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 21:36:42
+// Last modified: Monday 12 August 2024 @ 13:39:59
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -19,7 +19,7 @@ use solana_program::{
 };
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 
-use crate::timelock::TransferFromReserveTimelock;
+use crate::timelock::TimelockPda;
 use crate::{
     config::ConfigurationPda,
     investment::UserInvestmentPda,
@@ -239,8 +239,7 @@ pub fn initialize(
 ) -> Result<Instruction, ProgramError> {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let (transfer_timelock_pda, _timelock_bump) =
-        TransferFromReserveTimelock::get_address(&crate::ID);
+    let (transfer_timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
 
     let args = InitializeArgs {
         unvesting,
@@ -546,8 +545,7 @@ pub fn queue_transfer_from_reserve(
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
-    let (transfer_timelock_pda, _timelock_bump) =
-        TransferFromReserveTimelock::get_address(&crate::ID);
+    let (transfer_timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
     let target_ata =
         get_associated_token_address_with_program_id(target, &mint_address, &spl_token_2022::ID);
 
@@ -585,8 +583,7 @@ pub fn execute_transfer_from_reserve(
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
-    let (transfer_timelock_pda, _timelock_bump) =
-        TransferFromReserveTimelock::get_address(&crate::ID);
+    let (transfer_timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
     let reserve_ata = get_associated_token_address_with_program_id(
         &admin_keys_pda,
         &mint_address,

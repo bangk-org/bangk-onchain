@@ -3,7 +3,7 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 20:20:37
+// Last modified: Monday 12 August 2024 @ 16:45:53
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -127,7 +127,7 @@ pub struct MultiSigPda {
     pub multisig: MultiSig,
 }
 
-impl MultiSigPda {
+impl<'a> MultiSigPda<'a> {
     /// Create a new Account for the definition of Freeze Keys.
     ///
     /// # Parameters
@@ -139,6 +139,7 @@ impl MultiSigPda {
             pda_type: Self::PDA_TYPE,
             bump,
             multisig,
+            account: None,
         }
     }
 }
