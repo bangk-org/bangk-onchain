@@ -3,7 +3,7 @@
 // Creation date: Monday 12 August 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 16:39:36
+// Last modified: Tuesday 13 August 2024 @ 13:24:50
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -15,7 +15,7 @@ use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, pubke
 
 use bangk_onchain_common::{pda::BangkPda, Result};
 
-use crate::processor::TIMELOCK_DELAY;
+use crate::{processor::TIMELOCK_DELAY, UnvestingScheme};
 
 /// Data for instructions subjected to time-locks
 #[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
@@ -25,6 +25,14 @@ pub enum TimelockInstruction {
         /// Pubkey of the target ATA
         target: Pubkey,
         /// Amount to transfer
+        amount: u64,
+    },
+    PostLaunchInvestment {
+        /// Pubkey of the target user
+        user: Pubkey,
+        /// Custom scheme if any
+        scheme: Option<UnvestingScheme>,
+        /// Amount to unvest
         amount: u64,
     },
 }
@@ -41,6 +49,7 @@ pub struct Timelock {
 impl Timelock {
     /// Create a new `TimelockInstruction::TransferFromReserve` instruction
     ///
+    /// # Parameters
     /// * `target` - The ATA to transfer tokens to,
     /// * `amount` - Number of tokens to transfer.
     pub fn transfer_from_reserve<I>(target: I, amount: u64) -> Result<Self>
@@ -50,6 +59,31 @@ impl Timelock {
         Ok(Self {
             instruction: TimelockInstruction::TransferFromReserve {
                 target: target.into(),
+                amount,
+            },
+            creation_time: get_timestamp()?,
+        })
+    }
+
+    /// Create a new `TimelockInstruction::PostLaunchInvestment`
+    ///
+    ///
+    /// # Parameters
+    /// * `target` - The user investing,
+    /// * `scheme` - The custom unvesting scheme if any,
+    /// * `amount` - Number of tokens to transfer.
+    pub fn post_launch_investment<I>(
+        target: I,
+        scheme: Option<UnvestingScheme>,
+        amount: u64,
+    ) -> Result<Self>
+    where
+        I: Into<Pubkey>,
+    {
+        Ok(Self {
+            instruction: TimelockInstruction::PostLaunchInvestment {
+                user: target.into(),
+                scheme,
                 amount,
             },
             creation_time: get_timestamp()?,
@@ -125,6 +159,28 @@ impl<'a> TimelockPda<'a> {
     ) -> ProgramResult {
         let instr = TimelockInstruction::TransferFromReserve {
             target: *target,
+            amount,
+        };
+        self.process_instruction(instr, payer)
+    }
+
+    /// Checks a post launch investment instruction
+    ///
+    /// If the instruction exists and is ready, the PDA's state on the blockchain
+    /// is updated, otherwise an error is returned.
+    ///
+    /// # Errors
+    /// If the instruction does not exist or if it is not ready.
+    pub fn process_post_launch_investment(
+        &mut self,
+        user: &Pubkey,
+        scheme: Option<UnvestingScheme>,
+        amount: u64,
+        payer: &AccountInfo<'a>,
+    ) -> ProgramResult {
+        let instr = TimelockInstruction::PostLaunchInvestment {
+            user: *user,
+            scheme,
             amount,
         };
         self.process_instruction(instr, payer)

@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 12:59:34
+// Last modified: Tuesday 13 August 2024 @ 13:41:41
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -14,11 +14,12 @@
 type Error = Box<dyn error::Error>;
 type Result<T> = result::Result<T, Error>;
 
-use std::{error, result};
+use std::{error, result, thread::sleep, time::Duration};
 
 use bangk_ico::{
-    adviser_post_launch_investment, user_investment, BangkIcoInstruction, ConfigurationPda,
-    UnvestingScheme, UnvestingType, UserInvestmentArgs, UserInvestmentPda,
+    process_adviser_post_launch_investment, queue_adviser_post_launch_investment, user_investment,
+    BangkIcoInstruction, ConfigurationPda, UnvestingScheme, UnvestingType, UserInvestmentArgs,
+    UserInvestmentPda, TIMELOCK_DELAY,
 };
 use bangk_onchain_common::{
     pda::PdaType,
@@ -322,6 +323,7 @@ async fn invalid_custom_scheme() -> Result<()> {
 async fn post_launch_advisers_investment() -> Result<()> {
     let mut env = common::init_with_mint().await;
 
+    let api = env.wallets["API"].pubkey();
     let admin1 = env.wallets["Admin 1"].pubkey();
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin3 = env.wallets["Admin 3"].pubkey();
@@ -334,10 +336,21 @@ async fn post_launch_advisers_investment() -> Result<()> {
     )
     .await;
 
-    let instruction =
-        adviser_post_launch_investment(&admin1, &admin2, &admin3, &user, None, INVESTED_AMOUNT)?;
+    let instruction = queue_adviser_post_launch_investment(
+        &admin1,
+        &admin2,
+        &admin3,
+        &user,
+        None,
+        INVESTED_AMOUNT,
+    )?;
     env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
         .await?;
+    // Wait for the timeout
+    sleep(Duration::from_secs(TIMELOCK_DELAY as u64));
+    // Execute the instruction
+    let instruction2 = process_adviser_post_launch_investment(&api, &user, None, INVESTED_AMOUNT)?;
+    env.execute_transaction(&[instruction2], &["API"]).await?;
 
     let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(user, &PROGRAM_ID);
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&bangk_ico::ID);
@@ -391,8 +404,14 @@ async fn post_launch_advisers_investment_before_launch() -> Result<()> {
     let admin3 = env.wallets["Admin 3"].pubkey();
     let user = Pubkey::new_unique();
 
-    let instruction =
-        adviser_post_launch_investment(&admin1, &admin2, &admin3, &user, None, INVESTED_AMOUNT)?;
+    let instruction = queue_adviser_post_launch_investment(
+        &admin1,
+        &admin2,
+        &admin3,
+        &user,
+        None,
+        INVESTED_AMOUNT,
+    )?;
     let res = env
         .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
         .await;
@@ -442,7 +461,7 @@ pub fn custom_non_adviser_post_launch(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkIcoInstruction::PostLaunchAdvisersInvestment(
+        data: borsh::to_vec(&BangkIcoInstruction::QueuePostLaunchAdvisersInvestment(
             UserInvestmentArgs {
                 user: *user,
                 invest_kind: UnvestingType::TeamFounders,

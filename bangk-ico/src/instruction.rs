@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 12:58:59
+// Last modified: Tuesday 13 August 2024 @ 13:40:41
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -153,19 +153,28 @@ pub enum BangkIcoInstruction {
     #[account(4, name="system_program", desc="System Program")]
     UserInvestment(UserInvestmentArgs),
 
-    /// Create or update a User's Investment.
+    /// Queue a post launch investment
     #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
     #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
     #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
-    #[account(3, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
+    #[account(3, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(4, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(5, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(6, writable, name="reserve_ata", desc="ATA Bangk will use as the reserve for BGK tokens")]
-    #[account(7, writable, name="invested_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
-    #[account(8, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
-    #[account(9, name="system_program", desc="System Program")]
-    #[account(10, name="token_program", desc="SPL Token 2022 Program")]
-    PostLaunchAdvisersInvestment(UserInvestmentArgs),
+    #[account(5, writable, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
+    #[account(6, name="system_program", desc="System Program")]
+    QueuePostLaunchAdvisersInvestment(UserInvestmentArgs),
+
+    /// Process a post launch investment
+    #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
+    #[account(1, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
+    #[account(2, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
+    #[account(3, writable, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
+    #[account(4, name="bgk_mint", desc="Mint of the BGK token")]
+    #[account(5, writable, name="reserve_ata", desc="ATA Bangk will use as the reserve for BGK tokens")]
+    #[account(6, writable, name="invested_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
+    #[account(7, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
+    #[account(8, name="system_program", desc="System Program")]
+    #[account(9, name="token_program", desc="SPL Token 2022 Program")]
+    ProcessPostLaunchAdvisersInvestment(UserInvestmentArgs),
 
     /// Cancel a user's investment.
     #[account(0, signer, writable, name="admin1", desc="Signer and fee payer for the instruction")]
@@ -209,14 +218,14 @@ pub enum BangkIcoInstruction {
     #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
     #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(4, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
+    #[account(4, writable, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
     #[account(5, name="system_program", desc="System Program")]
     QueueTransferFromReserve(QueueTransferFromReserveArgs),
 
     /// Executes a transfer BGK from Bangk's reserve ATA.
     #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
     #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(2, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
+    #[account(2, writable, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
     #[account(3, name="bgk_mint", desc="Mint of the BGK token")]
     #[account(4, writable, name="reserve_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
     #[account(5, name="user", desc="Wallet of the user to whom the tokens will be transfered")]
@@ -413,7 +422,7 @@ pub fn user_investment(
 ///
 /// # Errors
 /// If instruction's data could not be serialized (so…never?)
-pub fn adviser_post_launch_investment(
+pub fn queue_adviser_post_launch_investment(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
@@ -423,6 +432,51 @@ pub fn adviser_post_launch_investment(
 ) -> Result<Instruction, ProgramError> {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
+
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin1, true),
+            AccountMeta::new_readonly(*admin2, true),
+            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(timelock_pda, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: borsh::to_vec(&BangkIcoInstruction::QueuePostLaunchAdvisersInvestment(
+            UserInvestmentArgs {
+                user: *user,
+                invest_kind: UnvestingType::AdvisersPartners,
+                custom_rule,
+                amount,
+            },
+        ))?,
+    })
+}
+
+/// Create an instruction to update or create an adviser or partner's investment after the launch.
+///
+/// # Parameters
+/// * `admin1` - Key of the payer and first signer of the instruction,
+/// * `admin2` - Key of the second signer of the instruction,
+/// * `admin3` - Key of the third signer of the instruction,
+/// * `user` - User for whom the investment will be created / updated,
+/// * `custom_rule` - Custom rule of unvesting if necessary,
+/// * `amount` - Number of tokens bought.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn process_adviser_post_launch_investment(
+    admin1: &Pubkey,
+    user: &Pubkey,
+    custom_rule: Option<UnvestingScheme>,
+    amount: u64,
+) -> Result<Instruction, ProgramError> {
+    let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
     let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(user, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
     let reserve_ata = get_associated_token_address_with_program_id(
@@ -440,10 +494,9 @@ pub fn adviser_post_launch_investment(
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin1, true),
-            AccountMeta::new_readonly(*admin2, true),
-            AccountMeta::new_readonly(*admin3, true),
             AccountMeta::new(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(timelock_pda, false),
             AccountMeta::new(mint_address, false),
             AccountMeta::new(reserve_ata, false),
             AccountMeta::new(invested_ata, false),
@@ -451,7 +504,7 @@ pub fn adviser_post_launch_investment(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkIcoInstruction::PostLaunchAdvisersInvestment(
+        data: borsh::to_vec(&BangkIcoInstruction::ProcessPostLaunchAdvisersInvestment(
             UserInvestmentArgs {
                 user: *user,
                 invest_kind: UnvestingType::AdvisersPartners,
@@ -617,7 +670,7 @@ pub fn queue_transfer_from_reserve(
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
-    let (transfer_timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
+    let (timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
     let target_ata =
         get_associated_token_address_with_program_id(target, &mint_address, &spl_token_2022::ID);
 
@@ -628,7 +681,7 @@ pub fn queue_transfer_from_reserve(
             AccountMeta::new_readonly(*admin2, true),
             AccountMeta::new_readonly(*admin3, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new(transfer_timelock_pda, false),
+            AccountMeta::new(timelock_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: borsh::to_vec(&BangkIcoInstruction::QueueTransferFromReserve(
@@ -655,7 +708,7 @@ pub fn execute_transfer_from_reserve(
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
-    let (transfer_timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
+    let (timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
     let reserve_ata = get_associated_token_address_with_program_id(
         &admin_keys_pda,
         &mint_address,
@@ -669,7 +722,7 @@ pub fn execute_transfer_from_reserve(
         accounts: vec![
             AccountMeta::new(*payer, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new(transfer_timelock_pda, false),
+            AccountMeta::new(timelock_pda, false),
             AccountMeta::new(mint_address, false),
             AccountMeta::new(reserve_ata, false),
             AccountMeta::new_readonly(*target, false),
