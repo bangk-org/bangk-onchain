@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 15 July 2024 @ 16:38:06
+// Last modified: Tuesday 13 August 2024 @ 11:45:56
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -92,6 +92,9 @@ pub enum Error {
     /// The given PDA is not own by this program.
     #[display("a PDA's owner is not Bangk's program")]
     InvalidOwner,
+    /// The given PDA is not the expected one
+    #[display("the PDA address is not the normally computed one")]
+    InvalidPdaAddress,
     /// The given PDA has the wrong type.
     #[display("the PDA account is not of the right type")]
     InvalidPdaType,

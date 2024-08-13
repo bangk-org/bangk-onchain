@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 15:10:21
+// Last modified: Tuesday 13 August 2024 @ 11:47:35
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -176,9 +176,21 @@ fn initialize(
     }
 
     // Special case here, we want to make sure there are no risks for double initialization
-    let (_config_pda, config_bump) = ConfigurationPda::get_address(&crate::ID);
-    let (_admin_keys_pda, admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let (_timelock_pda, timelock_bump) = TimelockPda::get_address(&crate::ID);
+    let (config_pda, config_bump) = ConfigurationPda::get_address(&crate::ID);
+    let (admin_keys_pda, admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (timelock_pda, timelock_bump) = TimelockPda::get_address(&crate::ID);
+    if config_pda != *ctx.config.key {
+        msg!("invalid configuration PDA");
+        return Err(Error::InvalidPdaAddress.into());
+    }
+    if admin_keys_pda != *ctx.admin_sig.key {
+        msg!("invalid multisig PDA");
+        return Err(Error::InvalidPdaAddress.into());
+    }
+    if timelock_pda != *ctx.timelock.key {
+        msg!("invalid timelock PDA");
+        return Err(Error::InvalidPdaAddress.into());
+    }
 
     // Saving the Configuration PDA on the chain.
     debug!("writing config PDA");
@@ -504,6 +516,13 @@ fn user_investment(
     check_pda_owner!(program_id, ctx.config, ctx.sig_admin, ctx.investment);
     check_signers!(accounts, &ctx.sig_admin);
 
+    // Special case here, we want to make sure there are no risks for the wrong PDA address to be given, so we recompute it
+    let (investment_pda, investment_bump) = UserInvestmentPda::get_address(args.user, &crate::ID);
+    if investment_pda != *ctx.investment.key {
+        msg!("invalid user investment PDA");
+        return Err(Error::InvalidPdaAddress.into());
+    }
+
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
     config.amount_invested = config.amount_invested.saturating_add(args.amount);
     config.write(&ctx.api)?;
@@ -519,7 +538,7 @@ fn user_investment(
     if ctx.investment.lamports() == 0 {
         let investment =
             UserInvestment::new(args.user, args.invest_kind, args.amount, args.custom_rule)?;
-        let pda = UserInvestmentPda::new(args.bump, investment);
+        let pda = UserInvestmentPda::new(investment_bump, investment);
         pda.create(&ctx.investment, &ctx.api, &crate::ID)
     } else {
         let mut pda = UserInvestmentPda::from_account(&ctx.investment)?;
@@ -580,6 +599,13 @@ fn cancel_investment(
     // If PdA doesn't exist that's an error
     if ctx.investment.lamports() == 0 {
         return Err(Error::InvestmentDoesNotExist.into());
+    }
+
+    // Special case here, we want to make sure there are no risks for the wrong PDA address to be given, so we recompute it
+    let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(args.user, &crate::ID);
+    if investment_pda != *ctx.investment.key {
+        msg!("invalid user investment PDA");
+        return Err(Error::InvalidPdaAddress.into());
     }
 
     let mut pda = UserInvestmentPda::from_account(&ctx.investment)?;

@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 13:39:59
+// Last modified: Tuesday 13 August 2024 @ 11:43:02
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -68,8 +68,6 @@ pub struct UpdateAdminMultisigArgs {
 /// Arguments to create / update a user's investment.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
 pub struct UserInvestmentArgs {
-    /// PDA bump.
-    pub bump: u8,
     /// User owning the investment
     pub user: Pubkey,
     /// Type of investment.
@@ -370,7 +368,7 @@ pub fn user_investment(
 ) -> Result<Instruction, ProgramError> {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let (investment_pda, investment_bump) = UserInvestmentPda::get_address(user, &crate::ID);
+    let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(user, &crate::ID);
     Ok(Instruction {
         program_id: crate::ID,
         accounts: vec![
@@ -381,7 +379,6 @@ pub fn user_investment(
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: borsh::to_vec(&BangkIcoInstruction::UserInvestment(UserInvestmentArgs {
-            bump: investment_bump,
             user: *user,
             invest_kind,
             custom_rule,

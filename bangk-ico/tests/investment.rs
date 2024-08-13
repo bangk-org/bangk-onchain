@@ -335,5 +335,3 @@ async fn invalid_custom_scheme() {
         "there was an unexpected error in the instruction"
     );
 }
-
-// TODO: add invest after launch test
