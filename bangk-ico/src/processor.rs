@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 11:47:35
+// Last modified: Tuesday 13 August 2024 @ 12:00:00
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -925,7 +925,7 @@ fn queue_transfer_from_reserve(
     let ctx = QueueTransferFromReserveAccounts::new(accounts)?;
     msg!("Bangk: Queue tranfering BGK tokens from Bangk's reserve");
 
-    check_pda_owner!(program_id, ctx.sig_admin);
+    check_pda_owner!(program_id, ctx.sig_admin, ctx.timelock);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
 
     let mut timelock_pda = TimelockPda::from_account(&ctx.timelock)?;
@@ -975,7 +975,7 @@ fn execute_transfer_from_reserve(
     let ctx = ExecuteTransferFromReserveAccounts::new(accounts)?;
     msg!("Bangk: Tranfering BGK tokens from Bangk's reserve");
 
-    check_pda_owner!(program_id, ctx.sig_admin);
+    check_pda_owner!(program_id, ctx.sig_admin, ctx.timelock);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Routine);
     check_ata_exists!(ctx.ata_reserve);
 
