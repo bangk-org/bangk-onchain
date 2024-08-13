@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 11:45:56
+// Last modified: Tuesday 13 August 2024 @ 12:14:02
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -89,6 +89,9 @@ pub enum Error {
     /// Invalid invested amount
     #[display("the amount to transfer to the invested ata does not match the invested amount")]
     InvalidInvestedAmount,
+    /// The operation is invalid
+    #[display("invalid operation")]
+    InvalidOperation,
     /// The given PDA is not own by this program.
     #[display("a PDA's owner is not Bangk's program")]
     InvalidOwner,
@@ -140,6 +143,9 @@ pub enum Error {
     /// New project investments are only possible once the payment of dividends has finished.
     #[display("operation impossible: there are payments pending, try again later")]
     PendingPayments,
+    /// The special instruction post launch investment cannot be used before the launch
+    #[display("cannot use post-launch investment before launch")]
+    PostLaunchInvestmentBeforeLaunch,
     /// The project has already been initialized.
     #[display("the project has already been initialized")]
     ProjectAlreadyInitialized,
@@ -205,7 +211,12 @@ impl From<u32> for Error {
             x if x == Self::InvalidAta as u32 => Self::InvalidAta,
             x if x == Self::InvalidExchangeRate as u32 => Self::InvalidExchangeRate,
             x if x == Self::InvalidFreezeStatus as u32 => Self::InvalidFreezeStatus,
+            x if x == Self::InvalidOperation as u32 => Self::InvalidOperation,
             x if x == Self::InvalidOwner as u32 => Self::InvalidOwner,
+            x if x == Self::InvalidPdaAddress as u32 => Self::InvalidPdaAddress,
+            x if x == Self::PostLaunchInvestmentBeforeLaunch as u32 => {
+                Self::PostLaunchInvestmentBeforeLaunch
+            }
             x if x == Self::InvalidProjectArgument as u32 => Self::InvalidProjectArgument,
             x if x == Self::InvalidRawData as u32 => Self::InvalidRawData,
             x if x == Self::InvalidSigner as u32 => Self::InvalidSigner,

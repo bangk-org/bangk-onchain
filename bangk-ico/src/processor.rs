@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 12:00:00
+// Last modified: Tuesday 13 August 2024 @ 12:28:51
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -75,6 +75,9 @@ pub fn process_instruction(
             update_admin_multisig(program_id, accounts, args)
         }
         BangkIcoInstruction::UserInvestment(args) => user_investment(program_id, accounts, args),
+        BangkIcoInstruction::PostLaunchAdvisersInvestment(args) => {
+            post_launch_adivisers_investment(program_id, accounts, args)
+        }
         BangkIcoInstruction::CancelInvestment(args) => {
             cancel_investment(program_id, accounts, args)
         }
@@ -527,10 +530,10 @@ fn user_investment(
     config.amount_invested = config.amount_invested.saturating_add(args.amount);
     config.write(&ctx.api)?;
 
-    if args.invest_kind != UnvestingType::AdvisersPartners
-        && config.launch_date > 0
-        && config.launch_date <= get_timestamp()?
-    {
+    if config.launch_date > 0 && config.launch_date <= get_timestamp()? {
+        if args.invest_kind == UnvestingType::AdvisersPartners {
+            msg!("use instruction post_launch_advisers_investment instead");
+        }
         return Err(Error::IcoInvestAfterLaunch.into());
     }
 
@@ -551,6 +554,117 @@ fn user_investment(
         });
         pda.write(&ctx.api)
     }
+}
+
+struct PostLaunchInvestmentAccounts<'a> {
+    admin1: AccountInfo<'a>,
+    _admin2: AccountInfo<'a>,
+    _admin3: AccountInfo<'a>,
+    config: AccountInfo<'a>,
+    sig_admin: AccountInfo<'a>,
+    mint_bgk: AccountInfo<'a>,
+    ata_reserve: AccountInfo<'a>,
+    ata_invested: AccountInfo<'a>,
+    investment: AccountInfo<'a>,
+    _program_system: AccountInfo<'a>,
+    program_token: AccountInfo<'a>,
+}
+
+impl<'a> PostLaunchInvestmentAccounts<'a> {
+    fn new(accounts: &[AccountInfo<'a>]) -> Result<Self, ProgramError> {
+        let accounts_iter = &mut accounts.iter();
+        Ok(Self {
+            admin1: next_account_info(accounts_iter)?.clone(),
+            _admin2: next_account_info(accounts_iter)?.clone(),
+            _admin3: next_account_info(accounts_iter)?.clone(),
+            config: next_account_info(accounts_iter)?.clone(),
+            sig_admin: next_account_info(accounts_iter)?.clone(),
+            mint_bgk: next_account_info(accounts_iter)?.clone(),
+            ata_reserve: next_account_info(accounts_iter)?.clone(),
+            ata_invested: next_account_info(accounts_iter)?.clone(),
+            investment: next_account_info(accounts_iter)?.clone(),
+            _program_system: next_account_info(accounts_iter)?.clone(),
+            program_token: next_account_info(accounts_iter)?.clone(),
+        })
+    }
+}
+
+fn post_launch_adivisers_investment(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    args: UserInvestmentArgs,
+) -> ProgramResult {
+    let ctx = PostLaunchInvestmentAccounts::new(accounts)?;
+    msg!(
+        "Bangk: Post-launch creating / updating investment for {}",
+        args.user
+    );
+
+    check_pda_owner!(program_id, ctx.config, ctx.sig_admin, ctx.investment);
+    check_signers!(accounts, &ctx.sig_admin);
+
+    // Special case here, we want to make sure there are no risks for the wrong PDA address to be given, so we recompute it
+    let (investment_pda, investment_bump) = UserInvestmentPda::get_address(args.user, &crate::ID);
+    if investment_pda != *ctx.investment.key {
+        msg!("invalid user investment PDA");
+        return Err(Error::InvalidPdaAddress.into());
+    }
+
+    let mut config = ConfigurationPda::from_account(&ctx.config)?;
+    config.amount_invested = config.amount_invested.saturating_add(args.amount);
+    config.write(&ctx.admin1)?;
+
+    if config.launch_date == 0 {
+        return Err(Error::PostLaunchInvestmentBeforeLaunch.into());
+    }
+
+    // Only advisers & partners can get investments post-launch
+    if args.invest_kind != UnvestingType::AdvisersPartners {
+        msg!("this operation is only available for advisers & partners investments: aborting");
+        return Err(Error::InvalidOperation.into());
+    }
+
+    // If PdA doesn't exist yet, create it, otherwise update it
+    if ctx.investment.lamports() == 0 {
+        let investment =
+            UserInvestment::new(args.user, args.invest_kind, args.amount, args.custom_rule)?;
+        let pda = UserInvestmentPda::new(investment_bump, investment);
+        pda.create(&ctx.investment, &ctx.admin1, &crate::ID)?;
+    } else {
+        let mut pda = UserInvestmentPda::from_account(&ctx.investment)?;
+        pda.investment.investments.push(Investment {
+            kind: args.invest_kind,
+            timestamp: get_timestamp()?,
+            custom_rule: args.custom_rule,
+            amount_bought: args.amount,
+            amount_released: 0,
+        });
+        pda.write(&ctx.admin1)?;
+    }
+
+    // And finally, transfer the required amount of tokens from the reserve to the investment account
+    let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
+    let seeds = admin_sig.seeds();
+    let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    invoke_signed(
+        &transfer_checked(
+            ctx.program_token.key,
+            ctx.ata_reserve.key,
+            ctx.mint_bgk.key,
+            ctx.ata_invested.key,
+            ctx.sig_admin.key,
+            &[],
+            args.amount,
+            6,
+        )?,
+        &[
+            ctx.ata_reserve.clone(),
+            ctx.mint_bgk.clone(),
+            ctx.ata_invested.clone(),
+            ctx.sig_admin.clone(),
+        ],
+        &[seeds.as_slice()],
+    )
 }
 
 struct CancelInvestmentAccounts<'a> {

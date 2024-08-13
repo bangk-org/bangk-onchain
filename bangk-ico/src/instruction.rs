@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 11:43:02
+// Last modified: Tuesday 13 August 2024 @ 12:58:59
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -152,6 +152,20 @@ pub enum BangkIcoInstruction {
     #[account(3, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
     #[account(4, name="system_program", desc="System Program")]
     UserInvestment(UserInvestmentArgs),
+
+    /// Create or update a User's Investment.
+    #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
+    #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
+    #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
+    #[account(3, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
+    #[account(4, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
+    #[account(5, name="bgk_mint", desc="Mint of the BGK token")]
+    #[account(6, writable, name="reserve_ata", desc="ATA Bangk will use as the reserve for BGK tokens")]
+    #[account(7, writable, name="invested_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
+    #[account(8, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
+    #[account(9, name="system_program", desc="System Program")]
+    #[account(10, name="token_program", desc="SPL Token 2022 Program")]
+    PostLaunchAdvisersInvestment(UserInvestmentArgs),
 
     /// Cancel a user's investment.
     #[account(0, signer, writable, name="admin1", desc="Signer and fee payer for the instruction")]
@@ -387,6 +401,67 @@ pub fn user_investment(
     })
 }
 
+/// Create an instruction to update or create an adviser or partner's investment after the launch.
+///
+/// # Parameters
+/// * `admin1` - Key of the payer and first signer of the instruction,
+/// * `admin2` - Key of the second signer of the instruction,
+/// * `admin3` - Key of the third signer of the instruction,
+/// * `user` - User for whom the investment will be created / updated,
+/// * `custom_rule` - Custom rule of unvesting if necessary,
+/// * `amount` - Number of tokens bought.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn adviser_post_launch_investment(
+    admin1: &Pubkey,
+    admin2: &Pubkey,
+    admin3: &Pubkey,
+    user: &Pubkey,
+    custom_rule: Option<UnvestingScheme>,
+    amount: u64,
+) -> Result<Instruction, ProgramError> {
+    let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(user, &crate::ID);
+    let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
+    let reserve_ata = get_associated_token_address_with_program_id(
+        &admin_keys_pda,
+        &mint_address,
+        &spl_token_2022::ID,
+    );
+    let invested_ata = get_associated_token_address_with_program_id(
+        &config_pda,
+        &mint_address,
+        &spl_token_2022::ID,
+    );
+
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin1, true),
+            AccountMeta::new_readonly(*admin2, true),
+            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new(config_pda, false),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(mint_address, false),
+            AccountMeta::new(reserve_ata, false),
+            AccountMeta::new(invested_ata, false),
+            AccountMeta::new(investment_pda, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+        ],
+        data: borsh::to_vec(&BangkIcoInstruction::PostLaunchAdvisersInvestment(
+            UserInvestmentArgs {
+                user: *user,
+                invest_kind: UnvestingType::AdvisersPartners,
+                custom_rule,
+                amount,
+            },
+        ))?,
+    })
+}
+
 /// Cancel a user's investment.
 ///
 /// # Parameters
@@ -433,7 +508,7 @@ pub fn cancel_investment(
 /// # Parameters
 /// * `admin1` - Key of the payer and first signer of the instruction,
 /// * `admin2` - Key of the second signer of the instruction,
-/// * `admin2` - Key of the third signer of the instruction,
+/// * `admin3` - Key of the third signer of the instruction,
 /// * `timestamp` - Timestamp of the launch,
 /// * `amount` - Number of tokens to be released during the unvesting.
 ///
