@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 13:41:41
+// Last modified: Wednesday 14 August 2024 @ 19:19:38
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -18,8 +18,8 @@ use std::{error, result, thread::sleep, time::Duration};
 
 use bangk_ico::{
     process_adviser_post_launch_investment, queue_adviser_post_launch_investment, user_investment,
-    BangkIcoInstruction, ConfigurationPda, UnvestingScheme, UnvestingType, UserInvestmentArgs,
-    UserInvestmentPda, TIMELOCK_DELAY,
+    BangkIcoInstruction, ConfigurationPda, TimelockPda, UnvestingScheme, UnvestingType,
+    UserInvestmentArgs, UserInvestmentPda, TIMELOCK_DELAY,
 };
 use bangk_onchain_common::{
     pda::PdaType,
@@ -432,19 +432,7 @@ pub fn custom_non_adviser_post_launch(
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&bangk_ico::ID);
     let (admin_keys_pda, _admin_bump) =
         MultiSigPda::get_address(MultiSigType::Admin, &bangk_ico::ID);
-    let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(user, &bangk_ico::ID);
-    let (mint_address, _mint_bump) =
-        Pubkey::find_program_address(&[b"Mint", b"BGK"], &bangk_ico::ID);
-    let reserve_ata = get_associated_token_address_with_program_id(
-        &admin_keys_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
-    let invested_ata = get_associated_token_address_with_program_id(
-        &config_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
+    let (timelock_pda, _timelock_bump) = TimelockPda::get_address(&bangk_ico::ID);
 
     Ok(Instruction {
         program_id: bangk_ico::ID,
@@ -452,14 +440,10 @@ pub fn custom_non_adviser_post_launch(
             AccountMeta::new(*admin1, true),
             AccountMeta::new_readonly(*admin2, true),
             AccountMeta::new_readonly(*admin3, true),
-            AccountMeta::new(config_pda, false),
+            AccountMeta::new_readonly(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new(mint_address, false),
-            AccountMeta::new(reserve_ata, false),
-            AccountMeta::new(invested_ata, false),
-            AccountMeta::new(investment_pda, false),
+            AccountMeta::new(timelock_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
         data: borsh::to_vec(&BangkIcoInstruction::QueuePostLaunchAdvisersInvestment(
             UserInvestmentArgs {

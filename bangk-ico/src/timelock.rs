@@ -3,7 +3,7 @@
 // Creation date: Monday 12 August 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 13:24:50
+// Last modified: Wednesday 14 August 2024 @ 19:19:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -99,8 +99,10 @@ impl Timelock {
     }
 }
 
+/// A PDA containing all time-locked instructions.
 #[pda(kind = PdaType::TimelockInstruction, seed = "TimelockedInstructions")]
 pub struct TimelockPda {
+    /// Pending instructions
     pub instructions: Vec<Timelock>,
 }
 
@@ -149,7 +151,7 @@ impl<'a> TimelockPda<'a> {
     /// If the instruction exists and is ready, the PDA's state on the blockchain
     /// is updated, otherwise an error is returned.
     ///
-    /// # Errors
+    /// # Errors
     /// If the instruction does not exist or if it is not ready.
     pub fn process_transfer_from_reserve(
         &mut self,
@@ -169,7 +171,7 @@ impl<'a> TimelockPda<'a> {
     /// If the instruction exists and is ready, the PDA's state on the blockchain
     /// is updated, otherwise an error is returned.
     ///
-    /// # Errors
+    /// # Errors
     /// If the instruction does not exist or if it is not ready.
     pub fn process_post_launch_investment(
         &mut self,

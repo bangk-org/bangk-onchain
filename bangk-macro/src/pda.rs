@@ -3,7 +3,7 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 16:47:55
+// Last modified: Wednesday 14 August 2024 @ 19:22:16
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -149,6 +149,53 @@ fn get_address_fn_str(
     }
 }
 
+fn check_address_fn_str(
+    crate_name: &Ident,
+    params: TokenStream2,
+    casts: TokenStream2,
+    seeds: TokenStream2,
+) -> proc_macro2::TokenStream {
+    if params.is_empty() {
+        quote! {
+            /// Checks that the account is the expected one
+            ///
+            /// # Errors
+            /// If the address doesn't match the expected one.
+            pub fn check_address<'b>(program_id: &Pubkey, account: &solana_program::account_info::AccountInfo<'b>) -> #crate_name::Result<()> {
+                let expected = Pubkey::find_program_address(&[#seeds], program_id).0;
+                if expected == *account.key {
+                    Ok(())
+                } else {
+                    solana_program::msg!("PDA address mismatch: expected {}, got {}", expected, account.key);
+                    Err(#crate_name::Error::InvalidPdaAddress)
+                }
+            }
+        }
+    } else {
+        quote! {
+            /// Checks that the account is the expected one
+            ///
+            /// # Errors
+            /// If the address doesn't match the expected one.
+            pub fn check_address<'b, I>(#params program_id: &Pubkey, account: &solana_program::account_info::AccountInfo<'b>) -> #crate_name::Result<()>
+            where
+                I: Into<#crate_name::pda::Seed>,
+            {
+                use #crate_name::pda::Seed;
+
+                #casts
+                let expected = Pubkey::find_program_address(&[#seeds], program_id).0;
+                if expected == *account.key {
+                    Ok(())
+                } else {
+                    solana_program::msg!("PDA address mismatch: expected {}, got {}", expected, account.key);
+                    Err(#crate_name::Error::InvalidPdaAddress)
+                }
+            }
+        }
+    }
+}
+
 // Implements most of a PDA’s boilerplate.
 pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
     let mut ast = parse_macro_input!(input as DeriveInput);
@@ -225,6 +272,12 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
 
             let get_address_fn = get_address_fn_str(
                 &crate_ident,
+                get_address_params.clone(),
+                get_address_casts.clone(),
+                get_address_seeds.clone(),
+            );
+            let check_address_fn = check_address_fn_str(
+                &crate_ident,
                 get_address_params,
                 get_address_casts,
                 get_address_seeds,
@@ -272,6 +325,7 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
                     #[doc = #get_address_doc]
                     #[must_use]
                     #get_address_fn
+                    #check_address_fn
                     /// Loads a PDA data from an account.
                     ///
                     /// # Parameters
@@ -288,6 +342,7 @@ pub fn impl_pda(attrs: TokenStream, input: TokenStream) -> TokenStream {
                         if res.pda_type != Self::PDA_TYPE {
                             return Err(#crate_ident::Error::InvalidPdaType.into());
                         }
+
                         Ok(res)
                     }
                 }

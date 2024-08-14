@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Wednesday 24 July 2024 @ 20:58:52
+// Last modified: Wednesday 14 August 2024 @ 19:18:29
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -32,6 +32,7 @@ pub use investment::*;
 pub use processor::process_instruction;
 /// `Timelock` delay.
 pub use processor::TIMELOCK_DELAY;
+pub use timelock::TimelockPda;
 /// Sets the rules for the unvesting.
 pub use unvesting::*;
 

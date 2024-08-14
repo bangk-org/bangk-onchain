@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 13:39:28
+// Last modified: Wednesday 14 August 2024 @ 19:21:42
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -185,6 +185,7 @@ fn initialize(
     let (config_pda, config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (timelock_pda, timelock_bump) = TimelockPda::get_address(&crate::ID);
+
     if config_pda != *ctx.config.key {
         msg!("invalid configuration PDA");
         return Err(Error::InvalidPdaAddress.into());
@@ -267,6 +268,7 @@ fn mint_creation(
         return Err(Error::UniqueOperationAlreadyExecuted.into());
     }
 
+    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
     let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
 
     check_pda_owner!(program_id, ctx.sig_admin);
@@ -479,6 +481,7 @@ fn update_admin_multisig(
         return Err(Error::DuplicatedKeyInMultisigDefinition.into());
     }
 
+    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
     let mut admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
     admin_sig.multisig.keys = vec![
         args.api_key,
@@ -529,6 +532,7 @@ fn user_investment(
         return Err(Error::InvalidPdaAddress.into());
     }
 
+    ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
     config.amount_invested = config.amount_invested.saturating_add(args.amount);
     config.write(&ctx.api)?;
@@ -547,6 +551,7 @@ fn user_investment(
         let pda = UserInvestmentPda::new(investment_bump, investment);
         pda.create(&ctx.investment, &ctx.api, &crate::ID)
     } else {
+        UserInvestmentPda::check_address(args.user, &crate::ID, &ctx.investment)?;
         let mut pda = UserInvestmentPda::from_account(&ctx.investment)?;
         pda.investment.investments.push(Investment {
             kind: args.invest_kind,
@@ -591,13 +596,14 @@ fn queue_post_launch_adivisers_investment(
 ) -> ProgramResult {
     let ctx = QueuePostLaunchInvestmentAccounts::new(accounts)?;
     msg!(
-        "Bangk: Post-launch creating / updating investment for {}",
+        "Bangk: Queuing post-launch creating / updating investment for {}",
         args.user
     );
 
-    check_pda_owner!(program_id, ctx.config, ctx.sig_admin);
+    check_pda_owner!(program_id, ctx.config, ctx.sig_admin, ctx.timelock);
     check_signers!(accounts, &ctx.sig_admin);
 
+    ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let config = ConfigurationPda::from_account(&ctx.config)?;
     if config.launch_date == 0 {
         return Err(Error::PostLaunchInvestmentBeforeLaunch.into());
@@ -610,6 +616,7 @@ fn queue_post_launch_adivisers_investment(
     }
 
     // Create the timelocked instruction
+    TimelockPda::check_address(&crate::ID, &ctx.timelock)?;
     let mut timelock_pda = TimelockPda::from_account(&ctx.timelock)?;
     let timelock = Timelock::post_launch_investment(args.user, args.custom_rule, args.amount)?;
     timelock_pda.instructions.push(timelock);
@@ -654,14 +661,21 @@ fn process_post_launch_adivisers_investment(
 ) -> ProgramResult {
     let ctx = ProcessPostLaunchInvestmentAccounts::new(accounts)?;
     msg!(
-        "Bangk: Post-launch creating / updating investment for {}",
+        "Bangk: Processing post-launch creating / updating investment for {}",
         args.user
     );
 
-    check_pda_owner!(program_id, ctx.config, ctx.sig_admin, ctx.investment);
+    check_pda_owner!(
+        program_id,
+        ctx.config,
+        ctx.sig_admin,
+        ctx.investment,
+        ctx.timelock
+    );
     check_signers!(accounts, &ctx.sig_admin);
 
     // Check that there’s a queued transfer, and remove it from the list if found
+    TimelockPda::check_address(&crate::ID, &ctx.timelock)?;
     let mut timelock = TimelockPda::from_account(&ctx.timelock)?;
     timelock.process_post_launch_investment(
         &args.user,
@@ -678,6 +692,7 @@ fn process_post_launch_adivisers_investment(
         return Err(Error::InvalidPdaAddress.into());
     }
 
+    ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
     config.amount_invested = config.amount_invested.saturating_add(args.amount);
     config.write(&ctx.payer)?;
@@ -689,6 +704,7 @@ fn process_post_launch_adivisers_investment(
         let pda = UserInvestmentPda::new(investment_bump, investment);
         pda.create(&ctx.investment, &ctx.payer, &crate::ID)?;
     } else {
+        UserInvestmentPda::check_address(args.user, &crate::ID, &ctx.investment)?;
         let mut pda = UserInvestmentPda::from_account(&ctx.investment)?;
         pda.investment.investments.push(Investment {
             kind: args.invest_kind,
@@ -701,6 +717,7 @@ fn process_post_launch_adivisers_investment(
     }
 
     // And finally, transfer the required amount of tokens from the reserve to the investment account
+    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
     let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
     let seeds = admin_sig.seeds();
     let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
@@ -760,6 +777,7 @@ fn cancel_investment(
     check_pda_owner!(program_id, ctx.config, ctx.sig_admin, ctx.investment);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Sensitive);
 
+    ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
     config.amount_invested = config.amount_invested.saturating_sub(args.amount);
     config.write(&ctx.admin1)?;
@@ -780,6 +798,7 @@ fn cancel_investment(
         return Err(Error::InvalidPdaAddress.into());
     }
 
+    UserInvestmentPda::check_address(args.user, &crate::ID, &ctx.investment)?;
     let mut pda = UserInvestmentPda::from_account(&ctx.investment)?;
     let mut amount = args.amount;
     // Investments that won't be touched
@@ -863,6 +882,7 @@ fn launch_bgk(program_id: &Pubkey, accounts: &[AccountInfo], args: LaunchBGKArgs
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
     check_ata_exists!(ctx.ata_reserve);
 
+    ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
 
     if config.launch_date > 0 {
@@ -882,6 +902,7 @@ fn launch_bgk(program_id: &Pubkey, accounts: &[AccountInfo], args: LaunchBGKArgs
     config.write(&ctx.admin1)?;
 
     // Transferring the required amount of tokens from the reserve ATA to the invested ATA
+    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
     let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
     let seeds = admin_sig.seeds();
     let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
@@ -970,7 +991,9 @@ fn vesting_release(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     check_pda_owner!(program_id, ctx.config, ctx.investment);
 
     debug!("Reading PDA data");
+    ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let config = ConfigurationPda::from_account(&ctx.config)?;
+    UserInvestmentPda::check_address(ctx.user.key, &crate::ID, &ctx.investment)?;
     let mut investment = UserInvestmentPda::from_account(&ctx.investment)?;
 
     debug!("Integrity checks");
@@ -1100,6 +1123,7 @@ fn queue_transfer_from_reserve(
     check_pda_owner!(program_id, ctx.sig_admin, ctx.timelock);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
 
+    TimelockPda::check_address(&crate::ID, &ctx.timelock)?;
     let mut timelock_pda = TimelockPda::from_account(&ctx.timelock)?;
     // Create the timelocked instruction
     let timelock = Timelock::transfer_from_reserve(args.target, args.amount)?;
@@ -1167,11 +1191,13 @@ fn execute_transfer_from_reserve(
     }
 
     // Check that there’s a queued transfer, and remove it from the list if found
+    TimelockPda::check_address(&crate::ID, &ctx.timelock)?;
     let mut timelock = TimelockPda::from_account(&ctx.timelock)?;
     timelock.process_transfer_from_reserve(ctx.ata_target.key, args.amount, &ctx.admin1)?;
     debug!("queued operation is ready, proceeding");
 
     // Transferring the required amount of tokens from the reserve ATA to the target ATA
+    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
     let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
     let seeds = admin_sig.seeds();
     let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
