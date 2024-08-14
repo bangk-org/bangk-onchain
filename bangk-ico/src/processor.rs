@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Wednesday 14 August 2024 @ 19:21:42
+// Last modified: Friday 16 August 2024 @ 12:54:49
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -699,15 +699,19 @@ fn process_post_launch_adivisers_investment(
 
     // If PdA doesn't exist yet, create it, otherwise update it
     if ctx.investment.lamports() == 0 {
-        let investment =
-            UserInvestment::new(args.user, args.invest_kind, args.amount, args.custom_rule)?;
+        let investment = UserInvestment::new(
+            args.user,
+            UnvestingType::AdvisersPartners,
+            args.amount,
+            args.custom_rule,
+        )?;
         let pda = UserInvestmentPda::new(investment_bump, investment);
         pda.create(&ctx.investment, &ctx.payer, &crate::ID)?;
     } else {
         UserInvestmentPda::check_address(args.user, &crate::ID, &ctx.investment)?;
         let mut pda = UserInvestmentPda::from_account(&ctx.investment)?;
         pda.investment.investments.push(Investment {
-            kind: args.invest_kind,
+            kind: UnvestingType::AdvisersPartners,
             timestamp: get_timestamp()?,
             custom_rule: args.custom_rule,
             amount_bought: args.amount,
