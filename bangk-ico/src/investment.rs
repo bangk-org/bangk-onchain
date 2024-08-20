@@ -15,13 +15,25 @@ use bangk_onchain_common::{
     Error,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use shank::ShankType;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use crate::unvesting::{UnvestingScheme, UnvestingType};
 
 /// Definition of a user's ICO investment.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq, ShankType)]
+#[derive(
+    BorshSerialize,
+    BorshDeserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    ShankType,
+    Serialize,
+    Deserialize,
+)]
 pub struct Investment {
     /// Type of unvesting.
     pub kind: UnvestingType,
