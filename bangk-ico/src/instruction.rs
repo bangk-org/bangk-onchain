@@ -541,7 +541,7 @@ pub fn cancel_investment(
         accounts: vec![
             AccountMeta::new(*payer, true),
             AccountMeta::new_readonly(*admin, true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
             AccountMeta::new(investment_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
