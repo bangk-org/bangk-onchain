@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Friday 16 August 2024 @ 12:54:49
+// Last modified: Thursday 22 August 2024 @ 12:33:49
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -21,19 +21,20 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
-    program::{invoke, invoke_signed},
+    program::{get_return_data, invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
     system_instruction::create_account,
     sysvar::Sysvar as _,
 };
-use spl_associated_token_account::{
-    get_associated_token_address_with_program_id, instruction::create_associated_token_account,
-};
+use spl_associated_token_account::instruction::create_associated_token_account;
 use spl_token_2022::{
     extension::{metadata_pointer, ExtensionType},
-    instruction::{initialize_mint2, mint_to, set_authority, transfer_checked, AuthorityType},
+    instruction::{
+        get_account_data_size, initialize_account3, initialize_mint2, mint_to, set_authority,
+        transfer_checked, AuthorityType,
+    },
     state::Mint,
 };
 use spl_token_metadata_interface::{
@@ -49,12 +50,13 @@ use crate::{
     investment::{Investment, UserInvestment, UserInvestmentPda},
     timelock::{Timelock, TimelockPda},
     unvesting::UnvestingType,
-    ExecuteTransferFromReserveArgs, QueueTransferFromReserveArgs,
+    ExecuteTransferFromInternalWalletArgs, QueueTransferFromInternalWalletArgs, WalletType,
+    WALLET_INIT_AMOUNT,
 };
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));
 
-const TOTAL_TOKEN_AMOUNT: u64 = 177_000_000_000_000;
+const TOTAL_TOKEN_AMOUNT: u64 = 177_000_000;
 
 /// Main processor for the program
 ///
@@ -86,10 +88,10 @@ pub fn process_instruction(
         }
         BangkIcoInstruction::LaunchBGK(args) => launch_bgk(program_id, accounts, args),
         BangkIcoInstruction::VestingRelease => vesting_release(program_id, accounts),
-        BangkIcoInstruction::QueueTransferFromReserve(args) => {
+        BangkIcoInstruction::QueueTransferFromInternalWallet(args) => {
             queue_transfer_from_reserve(program_id, accounts, args)
         }
-        BangkIcoInstruction::ExecuteTransferFromReserve(args) => {
+        BangkIcoInstruction::ExecuteTransferFromInternalWallet(args) => {
             execute_transfer_from_reserve(program_id, accounts, args)
         }
     }
@@ -233,8 +235,17 @@ struct MintCreationAccounts<'a> {
     _admin3: AccountInfo<'a>,
     sig_admin: AccountInfo<'a>,
     mint_bgk: AccountInfo<'a>,
-    ata_reserve: AccountInfo<'a>,
-    program_system: AccountInfo<'a>,
+    pda_community: AccountInfo<'a>,
+    pda_defi: AccountInfo<'a>,
+    pda_foundation: AccountInfo<'a>,
+    pda_ico: AccountInfo<'a>,
+    pda_liquidity: AccountInfo<'a>,
+    pda_marketing: AccountInfo<'a>,
+    pda_partners: AccountInfo<'a>,
+    pda_rd: AccountInfo<'a>,
+    pda_reserve: AccountInfo<'a>,
+    pda_team: AccountInfo<'a>,
+    _program_system: AccountInfo<'a>,
     program_token: AccountInfo<'a>,
 }
 
@@ -247,8 +258,17 @@ impl<'a> MintCreationAccounts<'a> {
             _admin3: next_account_info(accounts_iter)?.clone(),
             sig_admin: next_account_info(accounts_iter)?.clone(),
             mint_bgk: next_account_info(accounts_iter)?.clone(),
-            ata_reserve: next_account_info(accounts_iter)?.clone(),
-            program_system: next_account_info(accounts_iter)?.clone(),
+            pda_community: next_account_info(accounts_iter)?.clone(),
+            pda_defi: next_account_info(accounts_iter)?.clone(),
+            pda_foundation: next_account_info(accounts_iter)?.clone(),
+            pda_ico: next_account_info(accounts_iter)?.clone(),
+            pda_liquidity: next_account_info(accounts_iter)?.clone(),
+            pda_marketing: next_account_info(accounts_iter)?.clone(),
+            pda_partners: next_account_info(accounts_iter)?.clone(),
+            pda_rd: next_account_info(accounts_iter)?.clone(),
+            pda_reserve: next_account_info(accounts_iter)?.clone(),
+            pda_team: next_account_info(accounts_iter)?.clone(),
+            _program_system: next_account_info(accounts_iter)?.clone(),
             program_token: next_account_info(accounts_iter)?.clone(),
         })
     }
@@ -292,21 +312,21 @@ fn mint_creation(
         .tlv_size_of()
         .map_err(|_err| Error::InvalidRawData)?;
 
-    let data_len = mint_len
+    let mint_data_len = mint_len
         .checked_add(meta_len)
         .ok_or(Error::IntegerOverflow)?;
     debug!(
         "Creating {} mint's PDA of size {}b.",
-        metadata.name, data_len
+        metadata.name, mint_data_len
     );
 
     // Creating the PDA where the mint will be saved
-    let rent = Rent::get()?.minimum_balance(data_len);
-    debug!("Rent needed: {} lamports", rent);
+    let mint_rent = Rent::get()?.minimum_balance(mint_data_len);
+    debug!("Rent needed: {} lamports", mint_rent);
     let create_pda_instr = create_account(
         ctx.admin1.key,
         ctx.mint_bgk.key,
-        rent,
+        mint_rent,
         mint_len as u64,
         &spl_token_2022::id(),
     );
@@ -318,8 +338,8 @@ fn mint_creation(
     )?;
 
     debug!("Initializing extensions");
-    let seeds = admin_sig.seeds();
-    let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    let admin_seeds = admin_sig.seeds();
+    let admin_seeds = admin_seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
     invoke_signed(
         &metadata_pointer::instruction::initialize(
             &spl_token_2022::id(),
@@ -328,7 +348,7 @@ fn mint_creation(
             Some(*ctx.mint_bgk.key),
         )?,
         &[ctx.mint_bgk.clone(), ctx.sig_admin.clone()],
-        &[seeds.as_slice()],
+        &[admin_seeds.as_slice()],
     )?;
 
     debug!("Initializing Mint");
@@ -342,7 +362,7 @@ fn mint_creation(
     invoke_signed(
         &init_token_mint,
         &[ctx.mint_bgk.clone()],
-        &[seeds.as_slice()],
+        &[admin_seeds.as_slice()],
     )?;
 
     debug!("Initializing metadata");
@@ -360,60 +380,97 @@ fn mint_creation(
     invoke_signed(
         &init_metadata,
         &[ctx.mint_bgk.clone(), ctx.sig_admin.clone()],
-        &[seeds.as_slice()],
+        &[admin_seeds.as_slice()],
     )?;
 
     debug!("Mint successfully initialized");
-    invoke_signed(
-        &create_associated_token_account(
-            ctx.admin1.key,
-            ctx.sig_admin.key,
-            ctx.mint_bgk.key,
-            ctx.program_token.key,
-        ),
-        &[
-            ctx.admin1.clone(),
-            ctx.ata_reserve.clone(),
-            ctx.sig_admin.clone(),
-            ctx.mint_bgk.clone(),
-            ctx.program_system.clone(),
-            ctx.program_token.clone(),
-        ],
-        &[seeds.as_slice()],
-    )?;
 
-    debug!("integrity check on the target ATA");
-    let target_ata = get_associated_token_address_with_program_id(
-        ctx.sig_admin.key,
-        ctx.mint_bgk.key,
-        &spl_token_2022::ID,
-    );
+    debug!("Initializing Bangk wallets");
+    let mut total: u64 = 0;
 
-    if target_ata != *ctx.ata_reserve.key {
-        msg!(
-            "the given target ATA was not the expected one ({})",
-            target_ata
-        );
-        return Err(Error::InvalidAta.into());
+    for (wallet, amount) in WALLET_INIT_AMOUNT {
+        let pda = match wallet {
+            WalletType::Community => &ctx.pda_community,
+            WalletType::DeFiIncentives => &ctx.pda_defi,
+            WalletType::Foundation => &ctx.pda_foundation,
+            WalletType::Ico => &ctx.pda_ico,
+            WalletType::Liquidity => &ctx.pda_liquidity,
+            WalletType::Marketing => &ctx.pda_marketing,
+            WalletType::Partners => &ctx.pda_partners,
+            WalletType::ResearchDevelopmentFund => &ctx.pda_rd,
+            WalletType::Reserve => &ctx.pda_reserve,
+            WalletType::TeamsAdvisers => &ctx.pda_team,
+        };
+        let address = wallet.get_pda().0;
+        if *pda.key != address {
+            msg!("invalid wallet address for wallet {:?}", wallet);
+            return Err(Error::InvalidPdaAddress.into());
+        }
+
+        let wallet_seeds = wallet.get_seeds();
+        let wallet_seeds = wallet_seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        invoke(
+            &get_account_data_size(&spl_token_2022::id(), ctx.mint_bgk.key, &[])?,
+            &[ctx.mint_bgk.clone()],
+        )?;
+        let Some((_key, data_len)) = get_return_data() else {
+            msg!("could not retrieve account size");
+            return Err(Error::InvalidRawData.into());
+        };
+        let data_len = u64::try_from_slice(&data_len)?;
+        #[allow(clippy::cast_possible_truncation)]
+        let wallet_rent = Rent::get()?.minimum_balance(data_len as usize);
+
+        debug!("creating PDA for wallet {:?}", wallet);
+        invoke_signed(
+            &create_account(
+                ctx.admin1.key,
+                pda.key,
+                wallet_rent,
+                data_len,
+                &spl_token_2022::id(),
+            ),
+            &[ctx.admin1.clone(), pda.clone()],
+            &[wallet_seeds.as_slice()],
+        )?;
+
+        debug!("initializing PDA account");
+        invoke_signed(
+            &initialize_account3(
+                &spl_token_2022::id(),
+                pda.key,
+                ctx.mint_bgk.key,
+                ctx.sig_admin.key,
+            )?,
+            &[pda.clone(), ctx.mint_bgk.clone()],
+            &[admin_seeds.as_slice()],
+        )?;
+
+        debug!("minting {} BGK to wallet {:?}", amount, wallet);
+        invoke_signed(
+            &mint_to(
+                &spl_token_2022::id(),
+                ctx.mint_bgk.key,
+                pda.key,
+                ctx.sig_admin.key,
+                &[],
+                amount.saturating_mul(1_000_000),
+            )?,
+            &[ctx.mint_bgk.clone(), pda.clone(), ctx.sig_admin.clone()],
+            &[admin_seeds.as_slice()],
+        )?;
+        total = total.saturating_add(amount);
     }
 
-    debug!("Minting tokens");
-    invoke_signed(
-        &mint_to(
-            &spl_token_2022::id(),
-            ctx.mint_bgk.key,
-            ctx.ata_reserve.key,
-            ctx.sig_admin.key,
-            &[ctx.sig_admin.key],
-            TOTAL_TOKEN_AMOUNT,
-        )?,
-        &[
-            ctx.mint_bgk.clone(),
-            ctx.ata_reserve.clone(),
-            ctx.sig_admin.clone(),
-        ],
-        &[seeds.as_slice()],
-    )?;
+    // Check that we dispatched the expected amount of tokens
+    if total != TOTAL_TOKEN_AMOUNT {
+        msg!(
+            "minted amount {} does not match the expected amount {}",
+            total,
+            TOTAL_TOKEN_AMOUNT
+        );
+        return Err(Error::InvalidAmount.into());
+    }
 
     // Revoking mint authority
     debug!("Revoking mint authority");
@@ -427,7 +484,7 @@ fn mint_creation(
             &[],
         )?,
         &[ctx.mint_bgk.clone(), ctx.sig_admin.clone()],
-        &[seeds.as_slice()],
+        &[admin_seeds.as_slice()],
     )?;
 
     Ok(())
@@ -535,6 +592,21 @@ fn user_investment(
     ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
     config.amount_invested = config.amount_invested.saturating_add(args.amount);
+
+    let max_amount = WALLET_INIT_AMOUNT
+        .iter()
+        .find(|(kind, _amount)| *kind == WalletType::Ico)
+        .map(|(_kind, amount)| amount.saturating_mul(1_000_000))
+        .unwrap_or_default();
+    if config.amount_invested > max_amount {
+        msg!(
+            "the maximum amount of available tokens has been exceeded ({} vs {})",
+            config.amount_invested,
+            max_amount
+        );
+        return Err(Error::InvalidAmount.into());
+    }
+
     config.write(&ctx.api)?;
 
     if config.launch_date > 0 && config.launch_date <= get_timestamp()? {
@@ -604,10 +676,27 @@ fn queue_post_launch_adivisers_investment(
     check_signers!(accounts, &ctx.sig_admin);
 
     ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
-    let config = ConfigurationPda::from_account(&ctx.config)?;
+    let mut config = ConfigurationPda::from_account(&ctx.config)?;
     if config.launch_date == 0 {
         return Err(Error::PostLaunchInvestmentBeforeLaunch.into());
     }
+
+    config.amount_invested = config.amount_invested.saturating_add(args.amount);
+
+    let max_amount = WALLET_INIT_AMOUNT
+        .iter()
+        .find(|(kind, _amount)| *kind == WalletType::Ico)
+        .map(|(_kind, amount)| amount.saturating_mul(1_000_000))
+        .unwrap_or_default();
+    if config.amount_invested > max_amount {
+        msg!(
+            "the maximum amount of available tokens has been exceeded ({} vs {})",
+            config.amount_invested,
+            max_amount
+        );
+        return Err(Error::InvalidAmount.into());
+    }
+    config.write(&ctx.admin1)?;
 
     // Only advisers & partners can get investments post-launch
     if args.invest_kind != UnvestingType::AdvisersPartners {
@@ -628,12 +717,8 @@ struct ProcessPostLaunchInvestmentAccounts<'a> {
     config: AccountInfo<'a>,
     sig_admin: AccountInfo<'a>,
     timelock: AccountInfo<'a>,
-    mint_bgk: AccountInfo<'a>,
-    ata_reserve: AccountInfo<'a>,
-    ata_invested: AccountInfo<'a>,
     investment: AccountInfo<'a>,
     _program_system: AccountInfo<'a>,
-    program_token: AccountInfo<'a>,
 }
 
 impl<'a> ProcessPostLaunchInvestmentAccounts<'a> {
@@ -644,12 +729,8 @@ impl<'a> ProcessPostLaunchInvestmentAccounts<'a> {
             config: next_account_info(accounts_iter)?.clone(),
             sig_admin: next_account_info(accounts_iter)?.clone(),
             timelock: next_account_info(accounts_iter)?.clone(),
-            mint_bgk: next_account_info(accounts_iter)?.clone(),
-            ata_reserve: next_account_info(accounts_iter)?.clone(),
-            ata_invested: next_account_info(accounts_iter)?.clone(),
             investment: next_account_info(accounts_iter)?.clone(),
             _program_system: next_account_info(accounts_iter)?.clone(),
-            program_token: next_account_info(accounts_iter)?.clone(),
         })
     }
 }
@@ -720,30 +801,7 @@ fn process_post_launch_adivisers_investment(
         pda.write(&ctx.payer)?;
     }
 
-    // And finally, transfer the required amount of tokens from the reserve to the investment account
-    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
-    let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
-    let seeds = admin_sig.seeds();
-    let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    invoke_signed(
-        &transfer_checked(
-            ctx.program_token.key,
-            ctx.ata_reserve.key,
-            ctx.mint_bgk.key,
-            ctx.ata_invested.key,
-            ctx.sig_admin.key,
-            &[],
-            args.amount,
-            6,
-        )?,
-        &[
-            ctx.ata_reserve.clone(),
-            ctx.mint_bgk.clone(),
-            ctx.ata_invested.clone(),
-            ctx.sig_admin.clone(),
-        ],
-        &[seeds.as_slice()],
-    )
+    Ok(())
 }
 
 struct CancelInvestmentAccounts<'a> {
@@ -850,12 +908,7 @@ struct LaunchBgkAccounts<'a> {
     _admin3: AccountInfo<'a>,
     config: AccountInfo<'a>,
     sig_admin: AccountInfo<'a>,
-    mint_bgk: AccountInfo<'a>,
-    ata_reserve: AccountInfo<'a>,
-    ata_invested: AccountInfo<'a>,
-    program_system: AccountInfo<'a>,
-    program_token: AccountInfo<'a>,
-    _program_ata: AccountInfo<'a>,
+    _program_system: AccountInfo<'a>,
 }
 
 impl<'a> LaunchBgkAccounts<'a> {
@@ -867,12 +920,7 @@ impl<'a> LaunchBgkAccounts<'a> {
             _admin3: next_account_info(accounts_iter)?.clone(),
             config: next_account_info(accounts_iter)?.clone(),
             sig_admin: next_account_info(accounts_iter)?.clone(),
-            mint_bgk: next_account_info(accounts_iter)?.clone(),
-            ata_reserve: next_account_info(accounts_iter)?.clone(),
-            ata_invested: next_account_info(accounts_iter)?.clone(),
-            program_system: next_account_info(accounts_iter)?.clone(),
-            program_token: next_account_info(accounts_iter)?.clone(),
-            _program_ata: next_account_info(accounts_iter)?.clone(),
+            _program_system: next_account_info(accounts_iter)?.clone(),
         })
     }
 }
@@ -884,7 +932,6 @@ fn launch_bgk(program_id: &Pubkey, accounts: &[AccountInfo], args: LaunchBGKArgs
 
     check_pda_owner!(program_id, ctx.config, ctx.sig_admin);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
-    check_ata_exists!(ctx.ata_reserve);
 
     ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
     let mut config = ConfigurationPda::from_account(&ctx.config)?;
@@ -892,64 +939,11 @@ fn launch_bgk(program_id: &Pubkey, accounts: &[AccountInfo], args: LaunchBGKArgs
     if config.launch_date > 0 {
         return Err(Error::BGKTokenAlreadyLaunched.into());
     }
-    if ctx.ata_invested.lamports() > 0 {
-        msg!("Invested ATA already exists: aborting to prevent any risk.");
-        return Err(Error::AccountAlreadyExists.into());
-    }
-
-    if config.amount_invested != args.amount {
-        msg!("The number of tokens to transfer to invested ATA does not match the amount invested ({})", config.amount_invested);
-        return Err(Error::InvalidInvestedAmount.into());
-    }
 
     config.launch_date = args.timestamp;
     config.write(&ctx.admin1)?;
 
-    // Transferring the required amount of tokens from the reserve ATA to the invested ATA
-    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
-    let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
-    let seeds = admin_sig.seeds();
-    let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    // Creating the ATA
-    debug!("creating the invested ATA");
-    invoke_signed(
-        &create_associated_token_account(
-            ctx.admin1.key,
-            ctx.config.key,
-            ctx.mint_bgk.key,
-            ctx.program_token.key,
-        ),
-        &[
-            ctx.admin1.clone(),
-            ctx.ata_invested.clone(),
-            ctx.config.clone(),
-            ctx.mint_bgk.clone(),
-            ctx.program_system.clone(),
-            ctx.program_token.clone(),
-        ],
-        &[seeds.as_slice()],
-    )?;
-
-    debug!("transferring the tokens from the reserve ATA to the invested ATA");
-    invoke_signed(
-        &transfer_checked(
-            ctx.program_token.key,
-            ctx.ata_reserve.key,
-            ctx.mint_bgk.key,
-            ctx.ata_invested.key,
-            ctx.sig_admin.key,
-            &[],
-            args.amount,
-            6,
-        )?,
-        &[
-            ctx.ata_reserve.clone(),
-            ctx.mint_bgk.clone(),
-            ctx.ata_invested.clone(),
-            ctx.sig_admin.clone(),
-        ],
-        &[seeds.as_slice()],
-    )
+    Ok(())
 }
 
 struct VestingReleaseAccounts<'a> {
@@ -957,7 +951,7 @@ struct VestingReleaseAccounts<'a> {
     config: AccountInfo<'a>,
     sig_admin: AccountInfo<'a>,
     mint_bgk: AccountInfo<'a>,
-    ata_source: AccountInfo<'a>,
+    pda_source: AccountInfo<'a>,
     user: AccountInfo<'a>,
     investment: AccountInfo<'a>,
     ata_user: AccountInfo<'a>,
@@ -974,7 +968,7 @@ impl<'a> VestingReleaseAccounts<'a> {
             config: next_account_info(accounts_iter)?.clone(),
             sig_admin: next_account_info(accounts_iter)?.clone(),
             mint_bgk: next_account_info(accounts_iter)?.clone(),
-            ata_source: next_account_info(accounts_iter)?.clone(),
+            pda_source: next_account_info(accounts_iter)?.clone(),
             user: next_account_info(accounts_iter)?.clone(),
             investment: next_account_info(accounts_iter)?.clone(),
             ata_user: next_account_info(accounts_iter)?.clone(),
@@ -1010,6 +1004,10 @@ fn vesting_release(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     }
     if ctx.ata_user.lamports() > 0 && get_ata_owner(&ctx.ata_user)? != *ctx.user.key {
         return Err(Error::AccountOwnerMismatch.into());
+    }
+    if *ctx.pda_source.key != WalletType::Ico.get_pda().0 {
+        msg!("unexpected address for wallet PDA");
+        return Err(Error::InvalidPdaAddress.into());
     }
 
     debug!("Getting Timestamp");
@@ -1064,8 +1062,11 @@ fn vesting_release(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
             ],
         )?;
     }
-    let seeds = config.seeds();
-    let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
+
+    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
+    let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
+    let admin_seeds = admin_sig.seeds();
+    let admin_seeds = admin_seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
 
     debug!(
         "transferring {} tokens from the invested ATA to the user's ATA",
@@ -1074,21 +1075,21 @@ fn vesting_release(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     invoke_signed(
         &transfer_checked(
             ctx.program_token.key,
-            ctx.ata_source.key,
+            ctx.pda_source.key,
             ctx.mint_bgk.key,
             ctx.ata_user.key,
-            ctx.config.key,
+            ctx.sig_admin.key,
             &[],
             to_release,
             6,
         )?,
         &[
-            ctx.ata_source.clone(),
+            ctx.pda_source.clone(),
             ctx.mint_bgk.clone(),
             ctx.ata_user.clone(),
-            ctx.config.clone(),
+            ctx.sig_admin.clone(),
         ],
-        &[seeds.as_slice()],
+        &[admin_seeds.as_slice()],
     )
 }
 
@@ -1119,7 +1120,7 @@ impl<'a> QueueTransferFromReserveAccounts<'a> {
 fn queue_transfer_from_reserve(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    args: QueueTransferFromReserveArgs,
+    args: QueueTransferFromInternalWalletArgs,
 ) -> ProgramResult {
     let ctx = QueueTransferFromReserveAccounts::new(accounts)?;
     msg!("Bangk: Queue tranfering BGK tokens from Bangk's reserve");
@@ -1130,7 +1131,7 @@ fn queue_transfer_from_reserve(
     TimelockPda::check_address(&crate::ID, &ctx.timelock)?;
     let mut timelock_pda = TimelockPda::from_account(&ctx.timelock)?;
     // Create the timelocked instruction
-    let timelock = Timelock::transfer_from_reserve(args.target, args.amount)?;
+    let timelock = Timelock::transfer_from_internal_wallet(args.source, args.target, args.amount)?;
     timelock_pda.instructions.push(timelock);
     timelock_pda.write(&ctx.admin1)
 }
@@ -1140,7 +1141,7 @@ struct ExecuteTransferFromReserveAccounts<'a> {
     sig_admin: AccountInfo<'a>,
     timelock: AccountInfo<'a>,
     mint_bgk: AccountInfo<'a>,
-    ata_reserve: AccountInfo<'a>,
+    pda_source: AccountInfo<'a>,
     user: AccountInfo<'a>,
     ata_target: AccountInfo<'a>,
     program_system: AccountInfo<'a>,
@@ -1156,7 +1157,7 @@ impl<'a> ExecuteTransferFromReserveAccounts<'a> {
             sig_admin: next_account_info(accounts_iter)?.clone(),
             timelock: next_account_info(accounts_iter)?.clone(),
             mint_bgk: next_account_info(accounts_iter)?.clone(),
-            ata_reserve: next_account_info(accounts_iter)?.clone(),
+            pda_source: next_account_info(accounts_iter)?.clone(),
             user: next_account_info(accounts_iter)?.clone(),
             ata_target: next_account_info(accounts_iter)?.clone(),
             program_system: next_account_info(accounts_iter)?.clone(),
@@ -1170,41 +1171,37 @@ impl<'a> ExecuteTransferFromReserveAccounts<'a> {
 fn execute_transfer_from_reserve(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    args: ExecuteTransferFromReserveArgs,
+    args: ExecuteTransferFromInternalWalletArgs,
 ) -> ProgramResult {
     let ctx = ExecuteTransferFromReserveAccounts::new(accounts)?;
     msg!("Bangk: Tranfering BGK tokens from Bangk's reserve");
 
     check_pda_owner!(program_id, ctx.sig_admin, ctx.timelock);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Routine);
-    check_ata_exists!(ctx.ata_reserve);
 
-    debug!("integrity check on the target ATA");
-    let target_ata = get_associated_token_address_with_program_id(
-        ctx.sig_admin.key,
-        ctx.mint_bgk.key,
-        &spl_token_2022::ID,
-    );
-
-    if target_ata != *ctx.ata_reserve.key {
-        msg!(
-            "the given target ATA was not the expected one ({})",
-            target_ata
-        );
-        return Err(Error::InvalidAta.into());
+    debug!("integrity check on the source wallet");
+    if *ctx.pda_source.key != args.source.get_pda().0 {
+        msg!("unexpected address for wallet PDA");
+        return Err(Error::InvalidPdaAddress.into());
     }
 
     // Check that there’s a queued transfer, and remove it from the list if found
     TimelockPda::check_address(&crate::ID, &ctx.timelock)?;
     let mut timelock = TimelockPda::from_account(&ctx.timelock)?;
-    timelock.process_transfer_from_reserve(ctx.ata_target.key, args.amount, &ctx.admin1)?;
+    timelock.process_transfer_from_internal_wallet(
+        args.source,
+        ctx.ata_target.key,
+        args.amount,
+        &ctx.admin1,
+    )?;
     debug!("queued operation is ready, proceeding");
 
     // Transferring the required amount of tokens from the reserve ATA to the target ATA
     MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
     let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
-    let seeds = admin_sig.seeds();
-    let seeds = seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    let admin_seeds = admin_sig.seeds();
+    let admin_seeds = admin_seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
+
     // Creating the ATA
     if ctx.ata_target.lamports() == 0 {
         debug!("creating the target ATA since it doesn't yet exist");
@@ -1230,7 +1227,7 @@ fn execute_transfer_from_reserve(
     invoke_signed(
         &transfer_checked(
             ctx.program_token.key,
-            ctx.ata_reserve.key,
+            ctx.pda_source.key,
             ctx.mint_bgk.key,
             ctx.ata_target.key,
             ctx.sig_admin.key,
@@ -1239,11 +1236,11 @@ fn execute_transfer_from_reserve(
             6,
         )?,
         &[
-            ctx.ata_reserve.clone(),
+            ctx.pda_source.clone(),
             ctx.mint_bgk.clone(),
             ctx.ata_target.clone(),
             ctx.sig_admin.clone(),
         ],
-        &[seeds.as_slice()],
+        &[admin_seeds.as_slice()],
     )
 }

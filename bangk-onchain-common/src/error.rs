@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 12:14:02
+// Last modified: Wednesday 21 August 2024 @ 19:33:07
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -72,7 +72,7 @@ pub enum Error {
     #[display("there are not enough tokens for this operation")]
     InsufficientFunds,
     /// The given amount is invalid (likely lower or equal to zero).
-    #[display("the amount must be strictly greater than zero")]
+    #[display("the given amount is invalid")]
     InvalidAmount,
     /// An ATA given does not match what was expected (wrong owner for example).
     #[display("an ATA does not match what was expected")]

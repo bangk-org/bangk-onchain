@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Wednesday 14 August 2024 @ 19:18:29
+// Last modified: Wednesday 21 August 2024 @ 19:33:07
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -20,6 +20,7 @@ mod investment;
 mod processor;
 mod timelock;
 mod unvesting;
+mod wallets;
 
 // Only make public elements that would be useful.
 /// The configuration PDA for Bangk's ICO program.
@@ -35,6 +36,8 @@ pub use processor::TIMELOCK_DELAY;
 pub use timelock::TimelockPda;
 /// Sets the rules for the unvesting.
 pub use unvesting::*;
+/// The different types of reserve wallets used by Bangk
+pub use wallets::*;
 
 // Set the program's ID.
 include!(concat!(env!("OUT_DIR"), "/program_id.rs"));

@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 13 August 2024 @ 13:40:41
+// Last modified: Thursday 22 August 2024 @ 12:20:23
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -20,6 +20,7 @@ use solana_program::{
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 
 use crate::timelock::TimelockPda;
+use crate::WalletType;
 use crate::{
     config::ConfigurationPda,
     investment::UserInvestmentPda,
@@ -94,13 +95,13 @@ pub struct CancelInvestmentArgs {
 pub struct LaunchBGKArgs {
     /// Timestamp of the launch date.
     pub timestamp: i64,
-    /// Amount of tokens that will be unvested.
-    pub amount: u64,
 }
 
 /// Transfer BGK out of Bangk's reserve account.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
-pub struct QueueTransferFromReserveArgs {
+pub struct QueueTransferFromInternalWalletArgs {
+    /// The wallet source for the transfer.
+    pub source: WalletType,
     /// ATA to which the tokens will be transferred.
     pub target: Pubkey,
     /// Amount of tokens to transfer.
@@ -109,7 +110,9 @@ pub struct QueueTransferFromReserveArgs {
 
 /// Transfer BGK out of Bangk's reserve account.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
-pub struct ExecuteTransferFromReserveArgs {
+pub struct ExecuteTransferFromInternalWalletArgs {
+    /// The wallet source for the transfer.
+    pub source: WalletType,
     /// Amount of tokens to transfer.
     pub amount: u64,
 }
@@ -132,9 +135,18 @@ pub enum BangkIcoInstruction {
     #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
     #[account(4, writable, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(5, writable, name="reserve_ata", desc="ATA Bangk will use as the reserve for BGK tokens")]
-    #[account(6, name="system_program", desc="System Program")]
-    #[account(7, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(5, writable, name="pda_community", desc="Bangk BGK wallet dedicated to the community")]
+    #[account(6, writable, name="pda_defi", desc="Bangk BGK wallet dedicated to DeFi initiatives")]
+    #[account(7, writable, name="pda_foundation", desc="Bangk BGK wallet dedicated to the foundation")]
+    #[account(8, writable, name="pda_ico", desc="Bangk BGK wallet dedicated to the ICO")]
+    #[account(9, writable, name="pda_liquidity", desc="Bangk BGK wallet dedicated to the liquidity pool")]
+    #[account(10, writable, name="pda_marketing", desc="Bangk BGK wallet dedicated to marketing")]
+    #[account(11, writable, name="pda_partners", desc="Bangk BGK wallet dedicated to the partners")]
+    #[account(12, writable, name="pda_rd", desc="Bangk BGK wallet dedicated to Research & Development")]
+    #[account(13, writable, name="pda_reserve", desc="Bangk BGK wallet dedicated to the reserve funds")]
+    #[account(14, writable, name="pda_team", desc="Bangk BGK wallet dedicated to the team and advisers")]
+    #[account(15, name="system_program", desc="System Program")]
+    #[account(16, name="token_program", desc="SPL Token 2022 Program")]
     MintBGK(MintCreationArgs),
 
     /// Update the keys for the Admin `MultiSig`
@@ -191,12 +203,7 @@ pub enum BangkIcoInstruction {
     #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
     #[account(3, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(4, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(5, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(6, writable, name="reserve_ata", desc="ATA Bangk will use as the reserve for BGK tokens")]
-    #[account(7, writable, name="invested_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
-    #[account(8, name="system_program", desc="System Program")]
-    #[account(9, name="token_program", desc="SPL Token 2022 Program")]
-    #[account(10, name="ata_program", desc="Associated Token Account Program")]
+    #[account(5, name="system_program", desc="System Program")]
     LaunchBGK(LaunchBGKArgs),
 
     /// Release tokens (if possible).
@@ -204,7 +211,7 @@ pub enum BangkIcoInstruction {
     #[account(1, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(2, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
     #[account(3, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(4, writable, name="invested_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
+    #[account(4, writable, name="invested_pda", desc="Bangk BGK wallet storing the tokens that will be gradually released to the users")]
     #[account(5, name="user", desc="Wallet of the user for whom the tokens will be released")]
     #[account(6, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
     #[account(7, writable, name="user_ata", desc="BGK ATA for the user")]
@@ -220,20 +227,20 @@ pub enum BangkIcoInstruction {
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
     #[account(4, writable, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
     #[account(5, name="system_program", desc="System Program")]
-    QueueTransferFromReserve(QueueTransferFromReserveArgs),
+    QueueTransferFromInternalWallet(QueueTransferFromInternalWalletArgs),
 
     /// Executes a transfer BGK from Bangk's reserve ATA.
     #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
     #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
     #[account(2, writable, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
     #[account(3, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(4, writable, name="reserve_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
+    #[account(4, writable, name="reserve_ata", desc="Bangk's BGK wallet the tokens are taken from")]
     #[account(5, name="user", desc="Wallet of the user to whom the tokens will be transfered")]
     #[account(6, writable, name="target_ata", desc="BGK ATA where the tokens will be transfered")]
     #[account(7, name="system_program", desc="System Program")]
     #[account(8, name="token_program", desc="SPL Token 2022 Program")]
     #[account(9, name="ata_program", desc="Associated Token Account Program")]
-    ExecuteTransferFromReserve(ExecuteTransferFromReserveArgs),
+    ExecuteTransferFromInternalWallet(ExecuteTransferFromInternalWalletArgs),
 }
 
 /// Initializes the ICO program's configuration.
@@ -299,11 +306,6 @@ pub fn create_mint(
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
-    let reserve_ata = get_associated_token_address_with_program_id(
-        &admin_keys_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
 
     Ok(Instruction {
         program_id: crate::ID,
@@ -313,10 +315,18 @@ pub fn create_mint(
             AccountMeta::new_readonly(*admin3, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
             AccountMeta::new(mint_address, false),
-            AccountMeta::new(reserve_ata, false),
+            AccountMeta::new(WalletType::Community.get_pda().0, false),
+            AccountMeta::new(WalletType::DeFiIncentives.get_pda().0, false),
+            AccountMeta::new(WalletType::Foundation.get_pda().0, false),
+            AccountMeta::new(WalletType::Ico.get_pda().0, false),
+            AccountMeta::new(WalletType::Liquidity.get_pda().0, false),
+            AccountMeta::new(WalletType::Marketing.get_pda().0, false),
+            AccountMeta::new(WalletType::Partners.get_pda().0, false),
+            AccountMeta::new(WalletType::ResearchDevelopmentFund.get_pda().0, false),
+            AccountMeta::new(WalletType::Reserve.get_pda().0, false),
+            AccountMeta::new(WalletType::TeamsAdvisers.get_pda().0, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
-            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
         data: borsh::to_vec(&BangkIcoInstruction::MintBGK(MintCreationArgs {
             bump: mint_bump,
@@ -440,7 +450,7 @@ pub fn queue_adviser_post_launch_investment(
             AccountMeta::new(*admin1, true),
             AccountMeta::new_readonly(*admin2, true),
             AccountMeta::new_readonly(*admin3, true),
-            AccountMeta::new_readonly(config_pda, false),
+            AccountMeta::new(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
             AccountMeta::new(timelock_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
@@ -478,17 +488,6 @@ pub fn process_adviser_post_launch_investment(
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
     let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(user, &crate::ID);
-    let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
-    let reserve_ata = get_associated_token_address_with_program_id(
-        &admin_keys_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
-    let invested_ata = get_associated_token_address_with_program_id(
-        &config_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
 
     Ok(Instruction {
         program_id: crate::ID,
@@ -497,12 +496,8 @@ pub fn process_adviser_post_launch_investment(
             AccountMeta::new(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
             AccountMeta::new(timelock_pda, false),
-            AccountMeta::new(mint_address, false),
-            AccountMeta::new(reserve_ata, false),
-            AccountMeta::new(invested_ata, false),
             AccountMeta::new(investment_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
         data: borsh::to_vec(&BangkIcoInstruction::ProcessPostLaunchAdvisersInvestment(
             UserInvestmentArgs {
@@ -572,21 +567,9 @@ pub fn launch_bgk(
     admin2: &Pubkey,
     admin3: &Pubkey,
     timestamp: i64,
-    amount: u64,
 ) -> Result<Instruction, ProgramError> {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
-    let reserve_ata = get_associated_token_address_with_program_id(
-        &admin_keys_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
-    let invested_ata = get_associated_token_address_with_program_id(
-        &config_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
 
     Ok(Instruction {
         program_id: crate::ID,
@@ -596,17 +579,9 @@ pub fn launch_bgk(
             AccountMeta::new_readonly(*admin3, true),
             AccountMeta::new(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new(mint_address, false),
-            AccountMeta::new(reserve_ata, false),
-            AccountMeta::new(invested_ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(spl_token_2022::ID, false),
-            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
-        data: borsh::to_vec(&BangkIcoInstruction::LaunchBGK(LaunchBGKArgs {
-            timestamp,
-            amount,
-        }))?,
+        data: borsh::to_vec(&BangkIcoInstruction::LaunchBGK(LaunchBGKArgs { timestamp }))?,
     })
 }
 
@@ -623,11 +598,7 @@ pub fn vesting_release(payer: &Pubkey, user: &Pubkey) -> Result<Instruction, Pro
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
     let (investment_pda, _investment_bump) = UserInvestmentPda::get_address(user, &crate::ID);
-    let invested_ata = get_associated_token_address_with_program_id(
-        &config_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
+    let invested_pda = WalletType::Ico.get_pda().0;
     let user_ata =
         get_associated_token_address_with_program_id(user, &mint_address, &spl_token_2022::ID);
 
@@ -638,7 +609,7 @@ pub fn vesting_release(payer: &Pubkey, user: &Pubkey) -> Result<Instruction, Pro
             AccountMeta::new_readonly(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
             AccountMeta::new_readonly(mint_address, false),
-            AccountMeta::new(invested_ata, false),
+            AccountMeta::new(invested_pda, false),
             AccountMeta::new_readonly(*user, false),
             AccountMeta::new(investment_pda, false),
             AccountMeta::new(user_ata, false),
@@ -657,15 +628,17 @@ pub fn vesting_release(payer: &Pubkey, user: &Pubkey) -> Result<Instruction, Pro
 /// * `admin2` - Key of the second signer of the instruction,
 /// * `admin2` - Key of the third signer of the instruction,
 /// * `target` - Target ATA (created if doesn't exist yet),
+/// * `source` - The source internal wallet (community, marketing, etc.)
 /// * `amount` - Number of tokens to transfer.
 ///
 /// # Errors
 /// If instruction's data could not be serialized (so…never?)
-pub fn queue_transfer_from_reserve(
+pub fn queue_transfer_from_internal_wallet(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
     target: &Pubkey,
+    source: WalletType,
     amount: u64,
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
@@ -684,10 +657,11 @@ pub fn queue_transfer_from_reserve(
             AccountMeta::new(timelock_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
-        data: borsh::to_vec(&BangkIcoInstruction::QueueTransferFromReserve(
-            QueueTransferFromReserveArgs {
+        data: borsh::to_vec(&BangkIcoInstruction::QueueTransferFromInternalWallet(
+            QueueTransferFromInternalWalletArgs {
                 target: target_ata,
                 amount,
+                source,
             },
         ))?,
     })
@@ -697,23 +671,21 @@ pub fn queue_transfer_from_reserve(
 ///
 /// # Parameters
 /// * `target` - Target ATA (created if doesn't exist yet),
+/// * `source` - The source internal wallet (community, marketing, etc.)
 /// * `amount` - Number of tokens to be released during the unvesting.
 ///
 /// # Errors
 /// If instruction's data could not be serialized (so…never?)
-pub fn execute_transfer_from_reserve(
+pub fn execute_transfer_from_internal_wallet(
     payer: &Pubkey,
     target: &Pubkey,
+    source: WalletType,
     amount: u64,
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &crate::ID);
     let (timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
-    let reserve_ata = get_associated_token_address_with_program_id(
-        &admin_keys_pda,
-        &mint_address,
-        &spl_token_2022::ID,
-    );
+    let source_pda = source.get_pda().0;
     let target_ata =
         get_associated_token_address_with_program_id(target, &mint_address, &spl_token_2022::ID);
 
@@ -724,15 +696,15 @@ pub fn execute_transfer_from_reserve(
             AccountMeta::new_readonly(admin_keys_pda, false),
             AccountMeta::new(timelock_pda, false),
             AccountMeta::new(mint_address, false),
-            AccountMeta::new(reserve_ata, false),
+            AccountMeta::new(source_pda, false),
             AccountMeta::new_readonly(*target, false),
             AccountMeta::new(target_ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
             AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
-        data: borsh::to_vec(&BangkIcoInstruction::ExecuteTransferFromReserve(
-            ExecuteTransferFromReserveArgs { amount },
+        data: borsh::to_vec(&BangkIcoInstruction::ExecuteTransferFromInternalWallet(
+            ExecuteTransferFromInternalWalletArgs { source, amount },
         ))?,
     })
 }

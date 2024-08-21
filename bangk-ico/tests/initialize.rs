@@ -1,9 +1,9 @@
-// File: tests-onchain-ico/tests/initialize.rs
+// File: bangk-ico/tests/initialize.rs
 // Project: bangk-onchain
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 22:11:54
+// Last modified: Wednesday 21 August 2024 @ 19:33:07
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -12,6 +12,11 @@
 #![allow(clippy::panic)]
 #![allow(clippy::print_stdout)]
 
+type Error = Box<dyn error::Error>;
+type Result<T> = result::Result<T, Error>;
+
+use std::{error, result};
+
 pub mod common;
 
 use bangk_ico::{
@@ -19,7 +24,7 @@ use bangk_ico::{
 };
 use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
-    Error,
+    Error as BangkError,
 };
 use common::init_default;
 use solana_program_test::{processor, tokio};
@@ -29,11 +34,12 @@ use tests_utilities::onchain::Environment;
 use crate::common::{get_unvesting_def, PROGRAM_ID};
 
 #[tokio::test]
-async fn default() {
+async fn default() -> Result<()> {
     let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
-    let Some(api_key) = env.wallets.get("API") else {
-        panic!("no API key in the environment");
-    };
+    let api_key = env
+        .wallets
+        .get("API")
+        .ok_or("no API key in the environment")?;
     let api_pub = api_key.pubkey();
 
     let admin1 = Pubkey::new_unique();
@@ -41,7 +47,7 @@ async fn default() {
     let admin3 = Pubkey::new_unique();
     let admin4 = Pubkey::new_unique();
 
-    let Ok(instruction) = initialize(
+    let instruction = initialize(
         &api_key.pubkey(),
         get_unvesting_def(),
         &api_key.pubkey(),
@@ -49,22 +55,17 @@ async fn default() {
         &admin2,
         &admin3,
         &admin4,
-    ) else {
-        panic!("could not create instruction");
-    };
-    let res = env.execute_transaction(&[instruction], &["API"]).await;
-    assert!(
-        res.is_ok(),
-        "there was an unexpected error in the instruction"
-    );
+    )?;
+    env.execute_transaction(&[instruction], &["API"]).await?;
 
     let (config_pda, _) = ConfigurationPda::get_address(&bangk_ico::ID);
     let (admin_pda, _) = MultiSigPda::get_address(MultiSigType::Admin, &env.program_id);
 
     // Testing configuration PDA integrity
-    let Some(config): Option<ConfigurationPda> = env.from_account(&config_pda).await else {
-        panic!("could not load the ICO program configuration");
-    };
+    let config: ConfigurationPda = env
+        .from_account(&config_pda)
+        .await
+        .ok_or("could not load the ICO program configuration")?;
     assert_eq!(config.unvesting.len(), 6);
     assert_eq!(
         config.admin_multisig, admin_pda,
@@ -83,24 +84,27 @@ async fn default() {
     }
 
     // Testing Admin Keys PDA
-    let Some(admin): Option<MultiSigPda> = env.from_account(&admin_pda).await else {
-        panic!("could not load the admin multisig");
-    };
+    let admin: MultiSigPda = env
+        .from_account(&admin_pda)
+        .await
+        .ok_or("could not load the admin multisig")?;
     assert_eq!(admin.multisig.sig_type, MultiSigType::Admin);
     assert_eq!(
         admin.multisig.keys,
         &[api_pub, admin1, admin2, admin3, admin4]
     );
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn wrong_signer() {
+async fn wrong_signer() -> Result<()> {
     let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
 
     let random = env.add_wallet("random").await;
 
     println!("Initializing program");
-    let Ok(instruction) = initialize(
+    let instruction = initialize(
         &random,
         vec![],
         &Pubkey::new_unique(),
@@ -108,22 +112,22 @@ async fn wrong_signer() {
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env.execute_transaction(&[instruction], &["random"]).await;
     println!("{res:?}");
-    assert!(res.is_err_and(|err| err == Error::InvalidSigner));
+    assert!(res.is_err_and(|err| err == BangkError::InvalidSigner));
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn invalid_investment_definition() {
+async fn invalid_investment_definition() -> Result<()> {
     let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
     let Some(api_key) = env.wallets.get("API") else {
         panic!("no API key in the environment");
     };
 
-    let Ok(instruction) = initialize(
+    let instruction = initialize(
         &api_key.pubkey(),
         vec![],
         &Pubkey::new_unique(),
@@ -131,19 +135,20 @@ async fn invalid_investment_definition() {
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env.execute_transaction(&[instruction], &["API"]).await;
-    assert!(res.is_err_and(|err| err == Error::InvalidUnvestingDefinition));
+    assert!(res.is_err_and(|err| err == BangkError::InvalidUnvestingDefinition));
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn duplicate_def() {
+async fn duplicate_def() -> Result<()> {
     let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
-    let Some(api_key) = env.wallets.get("API") else {
-        panic!("no API key in the environment");
-    };
+    let api_key = env
+        .wallets
+        .get("API")
+        .ok_or("no API key in the environment")?;
 
     let unvesting_def = vec![
         UnvestingScheme {
@@ -196,7 +201,7 @@ async fn duplicate_def() {
         },
     ];
 
-    let Ok(instruction) = initialize(
+    let instruction = initialize(
         &api_key.pubkey(),
         unvesting_def,
         &Pubkey::new_unique(),
@@ -204,19 +209,20 @@ async fn duplicate_def() {
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env.execute_transaction(&[instruction], &["API"]).await;
-    assert!(res.is_err_and(|err| err == Error::InvalidUnvestingDefinition));
+    assert!(res.is_err_and(|err| err == BangkError::InvalidUnvestingDefinition));
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn invalid_def() {
+async fn invalid_def() -> Result<()> {
     let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
-    let Some(api_key) = env.wallets.get("API") else {
-        panic!("no API key in the environment");
-    };
+    let api_key = env
+        .wallets
+        .get("API")
+        .ok_or("no API key in the environment")?;
 
     let unvesting_def = vec![
         UnvestingScheme {
@@ -269,7 +275,7 @@ async fn invalid_def() {
         },
     ];
 
-    let Ok(instruction) = initialize(
+    let instruction = initialize(
         &api_key.pubkey(),
         unvesting_def,
         &Pubkey::new_unique(),
@@ -277,25 +283,26 @@ async fn invalid_def() {
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env.execute_transaction(&[instruction], &["API"]).await;
-    assert!(res.is_err_and(|err| err == Error::InvalidUnvestingDefinition));
+    assert!(res.is_err_and(|err| err == BangkError::InvalidUnvestingDefinition));
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn double_init() {
-    let mut env = init_default().await;
-    let Some(api_key) = env.wallets.get("API") else {
-        panic!("no API key in the environment");
-    };
+async fn double_init() -> Result<()> {
+    let mut env = init_default().await?;
+    let api_key = env
+        .wallets
+        .get("API")
+        .ok_or("no API key in the environment")?;
     let admin1 = Pubkey::new_unique();
     let admin2 = Pubkey::new_unique();
     let admin3 = Pubkey::new_unique();
     let admin4 = Pubkey::new_unique();
 
-    let Ok(instruction) = initialize(
+    let instruction = initialize(
         &api_key.pubkey(),
         get_unvesting_def(),
         &api_key.pubkey(),
@@ -303,28 +310,29 @@ async fn double_init() {
         &admin2,
         &admin3,
         &admin4,
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env.execute_transaction(&[instruction], &["API"]).await;
     assert!(
-        res.is_err_and(|err| err == Error::UniqueOperationAlreadyExecuted),
+        res.is_err_and(|err| err == BangkError::UniqueOperationAlreadyExecuted),
         "there was an unexpected error in the instruction"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn duplicated_key_in_multisig() {
+async fn duplicated_key_in_multisig() -> Result<()> {
     let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
-    let Some(api_key) = env.wallets.get("API") else {
-        panic!("no API key in the environment");
-    };
+    let api_key = env
+        .wallets
+        .get("API")
+        .ok_or("no API key in the environment")?;
 
     let admin1 = Pubkey::new_unique();
     let admin2 = Pubkey::new_unique();
     let admin3 = Pubkey::new_unique();
 
-    let Ok(instruction) = initialize(
+    let instruction = initialize(
         &api_key.pubkey(),
         get_unvesting_def(),
         &api_key.pubkey(),
@@ -332,12 +340,12 @@ async fn duplicated_key_in_multisig() {
         &admin2,
         &admin3,
         &admin3,
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env.execute_transaction(&[instruction], &["API"]).await;
     assert!(
-        res.is_err_and(|err| err == Error::DuplicatedKeyInMultisigDefinition),
+        res.is_err_and(|err| err == BangkError::DuplicatedKeyInMultisigDefinition),
         "there was an unexpected error in the instruction"
     );
+
+    Ok(())
 }
