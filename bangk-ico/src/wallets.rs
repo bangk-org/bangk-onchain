@@ -3,13 +3,14 @@
 // Creation date: Wednesday 21 August 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 22 August 2024 @ 12:47:50
+// Last modified: Wednesday 28 August 2024 @ 19:22:48
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
 
 use bangk_onchain_common::pda::Seed;
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 
 /// Initial amount sent to Bangk internal wallets
@@ -29,7 +30,9 @@ pub const WALLET_INIT_AMOUNT: [(WalletType, u64); 10] = [
 ];
 
 /// Types of BGK wallets owned by Bangk
-#[derive(Debug, Clone, Copy, Eq, PartialEq, BorshSerialize, BorshDeserialize)]
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize,
+)]
 pub enum WalletType {
     /// Used for promotion, events, *etc.*
     Community,
