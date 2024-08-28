@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 16:39:22
+// Last modified: Wednesday 28 August 2024 @ 19:22:48
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -48,7 +48,7 @@ pub struct Investment {
 }
 
 /// Stores the data for a user's investments.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Serialize, Deserialize)]
 pub struct UserInvestment {
     /// User owning the investment.
     pub user: Pubkey,

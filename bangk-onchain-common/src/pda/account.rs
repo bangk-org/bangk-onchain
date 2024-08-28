@@ -3,7 +3,7 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 16:51:43
+// Last modified: Thursday 22 August 2024 @ 12:52:36
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -39,6 +39,8 @@ pub enum PdaType {
     UserProjectInvestment,
     /// A `Timelocked` instruction
     TimelockInstruction,
+    /// A Bangk internal wallet
+    Wallet,
 }
 
 /// Common properties of a Bangk PDA

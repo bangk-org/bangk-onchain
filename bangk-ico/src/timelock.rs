@@ -3,7 +3,7 @@
 // Creation date: Monday 12 August 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Wednesday 14 August 2024 @ 19:19:10
+// Last modified: Wednesday 21 August 2024 @ 19:33:07
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -11,17 +11,22 @@
 use bangk_macro::pda;
 use bangk_onchain_common::{debug, get_timestamp, pda::PdaType, Error};
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, pubkey::Pubkey};
 
 use bangk_onchain_common::{pda::BangkPda, Result};
 
-use crate::{processor::TIMELOCK_DELAY, UnvestingScheme};
+use crate::{processor::TIMELOCK_DELAY, UnvestingScheme, WalletType};
 
 /// Data for instructions subjected to time-locks
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
+#[derive(
+    Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone, Serialize, Deserialize,
+)]
 pub enum TimelockInstruction {
     /// Transfer from reserve
     TransferFromReserve {
+        /// Internal wallet source
+        source: WalletType,
         /// Pubkey of the target ATA
         target: Pubkey,
         /// Amount to transfer
@@ -38,7 +43,7 @@ pub enum TimelockInstruction {
 }
 
 /// A time-locked instruction
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct Timelock {
     /// Instruction being time-locked
     pub instruction: TimelockInstruction,
@@ -52,12 +57,17 @@ impl Timelock {
     /// # Parameters
     /// * `target` - The ATA to transfer tokens to,
     /// * `amount` - Number of tokens to transfer.
-    pub fn transfer_from_reserve<I>(target: I, amount: u64) -> Result<Self>
+    pub fn transfer_from_internal_wallet<I>(
+        source: WalletType,
+        target: I,
+        amount: u64,
+    ) -> Result<Self>
     where
         I: Into<Pubkey>,
     {
         Ok(Self {
             instruction: TimelockInstruction::TransferFromReserve {
+                source,
                 target: target.into(),
                 amount,
             },
@@ -153,13 +163,15 @@ impl<'a> TimelockPda<'a> {
     ///
     /// # Errors
     /// If the instruction does not exist or if it is not ready.
-    pub fn process_transfer_from_reserve(
+    pub fn process_transfer_from_internal_wallet(
         &mut self,
+        source: WalletType,
         target: &Pubkey,
         amount: u64,
         payer: &AccountInfo<'a>,
     ) -> ProgramResult {
         let instr = TimelockInstruction::TransferFromReserve {
+            source,
             target: *target,
             amount,
         };

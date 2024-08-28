@@ -1,9 +1,9 @@
-// File: tests-onchain-ico/tests/update_admin_multisig.rs
+// File: bangk-ico/tests/update_admin_multisig.rs
 // Project: bangk-onchain
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Wednesday 24 July 2024 @ 19:01:05
+// Last modified: Wednesday 21 August 2024 @ 19:33:07
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -11,10 +11,15 @@
 #![allow(clippy::tests_outside_test_module)]
 #![allow(clippy::panic)]
 
+type Error = Box<dyn error::Error>;
+type Result<T> = result::Result<T, Error>;
+
+use std::{error, result};
+
 use bangk_ico::update_admin_multisig;
 use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
-    Error,
+    Error as BangkError,
 };
 use solana_program_test::tokio;
 use solana_sdk::signer::Signer as _;
@@ -24,8 +29,8 @@ use crate::common::PROGRAM_ID;
 pub mod common;
 
 #[tokio::test]
-async fn default() {
-    let mut env = common::init_default().await;
+async fn default() -> Result<()> {
+    let mut env = common::init_default().await?;
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &PROGRAM_ID);
 
     let admin1 = env.wallets["Admin 1"].pubkey();
@@ -36,7 +41,7 @@ async fn default() {
     let new_admin2 = env.add_wallet("Admin 6").await;
     let new_admin3 = env.add_wallet("Admin 7").await;
     let new_admin4 = env.add_wallet("Admin 8").await;
-    let Ok(instruction) = update_admin_multisig(
+    let instruction = update_admin_multisig(
         &admin1,
         &admin2,
         &admin3,
@@ -45,31 +50,27 @@ async fn default() {
         &new_admin2,
         &new_admin3,
         &new_admin4,
-    ) else {
-        panic!("could not create instruction");
-    };
-    let res = env
-        .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
-        .await;
-    assert!(
-        res.is_ok(),
-        "there was an unexpected error in the instruction"
-    );
+    )?;
+    env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
+        .await?;
 
     // Checking that the keys have been replaced
-    let Some(admin): Option<MultiSigPda> = env.from_account(&admin_keys_pda).await else {
-        panic!("could not load the admin multisig");
-    };
+    let admin: MultiSigPda = env
+        .from_account(&admin_keys_pda)
+        .await
+        .ok_or("could not load the admin multisig")?;
     assert_eq!(admin.multisig.sig_type, MultiSigType::Admin);
     assert_eq!(
         admin.multisig.keys,
         &[new_api_key, new_admin1, new_admin2, new_admin3, new_admin4]
     );
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn old_are_invalid() {
-    let mut env = common::init_default().await;
+async fn old_are_invalid() -> Result<()> {
+    let mut env = common::init_default().await?;
 
     let api = env.wallets["API"].pubkey();
     let admin2 = env.wallets["Admin 2"].pubkey();
@@ -79,7 +80,7 @@ async fn old_are_invalid() {
     let new_admin2 = env.add_wallet("Admin 6").await;
     let new_admin3 = env.add_wallet("Admin 7").await;
     let new_admin4 = env.add_wallet("Admin 8").await;
-    let Ok(instruction1) = update_admin_multisig(
+    let instruction1 = update_admin_multisig(
         &api,
         &admin2,
         &admin4,
@@ -88,19 +89,12 @@ async fn old_are_invalid() {
         &new_admin2,
         &new_admin3,
         &new_admin4,
-    ) else {
-        panic!("could not create instruction");
-    };
-    let res1 = env
-        .execute_transaction(&[instruction1], &["API", "Admin 2", "Admin 4"])
-        .await;
-    assert!(
-        res1.is_ok(),
-        "there was an unexpected error in the instruction"
-    );
+    )?;
+    env.execute_transaction(&[instruction1], &["API", "Admin 2", "Admin 4"])
+        .await?;
 
     // Keys are changed, try to change it back with the old signers
-    let Ok(instruction2) = update_admin_multisig(
+    let instruction2 = update_admin_multisig(
         &api,
         &admin2,
         &admin4,
@@ -109,21 +103,21 @@ async fn old_are_invalid() {
         &admin2,
         &new_admin3,
         &admin4,
-    ) else {
-        panic!("could not create instruction");
-    };
-    let res2 = env
+    )?;
+    let res = env
         .execute_transaction(&[instruction2], &["API", "Admin 2", "Admin 4"])
         .await;
     assert!(
-        res2.is_err_and(|err| err == Error::InvalidSigner),
+        res.is_err_and(|err| err == BangkError::InvalidSigner),
         "there was an unexpected error in the instruction"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn duplicated_key_in_multisig() {
-    let mut env = common::init_default().await;
+async fn duplicated_key_in_multisig() -> Result<()> {
+    let mut env = common::init_default().await?;
 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let admin2 = env.wallets["Admin 2"].pubkey();
@@ -132,7 +126,7 @@ async fn duplicated_key_in_multisig() {
     let new_admin1 = env.add_wallet("Admin 5").await;
     let new_admin3 = env.add_wallet("Admin 7").await;
     let new_admin4 = env.add_wallet("Admin 8").await;
-    let Ok(instruction) = update_admin_multisig(
+    let instruction = update_admin_multisig(
         &admin1,
         &admin2,
         &admin3,
@@ -141,21 +135,21 @@ async fn duplicated_key_in_multisig() {
         &new_admin3,
         &new_admin1,
         &new_admin4,
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env
         .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
         .await;
     assert!(
-        res.is_err_and(|err| err == Error::DuplicatedKeyInMultisigDefinition),
+        res.is_err_and(|err| err == BangkError::DuplicatedKeyInMultisigDefinition),
         "there was an unexpected error in the instruction"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
-async fn use_duplicate_keys() {
-    let mut env = common::init_default().await;
+async fn use_duplicate_keys() -> Result<()> {
+    let mut env = common::init_default().await?;
     let (_admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &PROGRAM_ID);
 
     let admin1 = env.wallets["Admin 1"].pubkey();
@@ -167,7 +161,7 @@ async fn use_duplicate_keys() {
     let new_admin2 = env.add_wallet("Admin 6").await;
     let new_admin3 = env.add_wallet("Admin 7").await;
     let new_admin4 = env.add_wallet("Admin 8").await;
-    let Ok(instruction) = update_admin_multisig(
+    let instruction = update_admin_multisig(
         &admin1,
         &admin2,
         &admin3,
@@ -176,14 +170,14 @@ async fn use_duplicate_keys() {
         &new_admin2,
         &new_admin3,
         &new_admin4,
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res = env
         .execute_transaction(&[instruction], &["Admin 1", "Admin 1", "Admin 1"])
         .await;
     assert!(
-        res.is_err_and(|err| err == Error::InvalidSigner),
+        res.is_err_and(|err| err == BangkError::InvalidSigner),
         "the transaction succeeded where it should have failed"
     );
+
+    Ok(())
 }

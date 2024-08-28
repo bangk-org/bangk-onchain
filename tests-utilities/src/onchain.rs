@@ -3,12 +3,12 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 16:46:43
+// Last modified: Wednesday 21 August 2024 @ 19:33:07
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
 
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, iter::once};
 
 use bangk_onchain_common::{pda::BangkPda, Error};
 use borsh::BorshDeserialize;
@@ -20,6 +20,7 @@ use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestBanksClientExt};
 use solana_sdk::{
     account::Account,
+    compute_budget::ComputeBudgetInstruction,
     instruction::InstructionError,
     signature::{keypair_from_seed_phrase_and_passphrase, Keypair},
     signer::Signer,
@@ -135,6 +136,30 @@ impl Environment {
             ))) => Err(Error::from(err)),
             Err(err) => panic!("Unexpected error: {err}"),
         }
+    }
+
+    /// Executes a transaction
+    ///
+    /// Once the transaction is finished, the block will be switched for a new one,
+    /// which prevents duplicated instructions from being ignored.
+    ///
+    /// # Errors
+    /// If an instruction errors and it's `bangk_onchain_common::Error`, it is properly returned.
+    ///
+    /// # Panics
+    /// If there is an error, but it's not a Custom one, then there's a panic as it shouldn't happen.
+    /// Can also happen if there are no signers
+    pub async fn execute_transaction_custom_budget(
+        &mut self,
+        instructions: &[Instruction],
+        signers: &[&str],
+        budget: u32,
+    ) -> Result<(), Error> {
+        let budget_instr = ComputeBudgetInstruction::set_compute_unit_limit(budget);
+        let instructions = Vec::from(instructions);
+        let instructions: Vec<Instruction> = once(budget_instr).chain(instructions).collect();
+        self.execute_transaction(instructions.as_slice(), signers)
+            .await
     }
 
     /// Get the state of an account.
