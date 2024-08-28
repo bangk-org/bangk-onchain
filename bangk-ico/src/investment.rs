@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 16:39:22
+// Last modified: Wednesday 28 August 2024 @ 19:22:48
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -15,13 +15,25 @@ use bangk_onchain_common::{
     Error,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use shank::ShankType;
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use crate::unvesting::{UnvestingScheme, UnvestingType};
 
 /// Definition of a user's ICO investment.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq, ShankType)]
+#[derive(
+    BorshSerialize,
+    BorshDeserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    ShankType,
+    Serialize,
+    Deserialize,
+)]
 pub struct Investment {
     /// Type of unvesting.
     pub kind: UnvestingType,
@@ -36,7 +48,7 @@ pub struct Investment {
 }
 
 /// Stores the data for a user's investments.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Serialize, Deserialize)]
 pub struct UserInvestment {
     /// User owning the investment.
     pub user: Pubkey,

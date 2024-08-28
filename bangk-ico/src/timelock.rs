@@ -11,6 +11,7 @@
 use bangk_macro::pda;
 use bangk_onchain_common::{debug, get_timestamp, pda::PdaType, Error};
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, pubkey::Pubkey};
 
 use bangk_onchain_common::{pda::BangkPda, Result};
@@ -18,7 +19,9 @@ use bangk_onchain_common::{pda::BangkPda, Result};
 use crate::{processor::TIMELOCK_DELAY, UnvestingScheme, WalletType};
 
 /// Data for instructions subjected to time-locks
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
+#[derive(
+    Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone, Serialize, Deserialize,
+)]
 pub enum TimelockInstruction {
     /// Transfer from reserve
     TransferFromReserve {
@@ -40,7 +43,7 @@ pub enum TimelockInstruction {
 }
 
 /// A time-locked instruction
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct Timelock {
     /// Instruction being time-locked
     pub instruction: TimelockInstruction,
