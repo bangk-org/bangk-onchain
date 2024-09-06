@@ -19,9 +19,7 @@ use std::{error, result};
 
 pub mod common;
 
-use bangk_ico::{
-    initialize, process_instruction, ConfigurationPda, UnvestingScheme, UnvestingType,
-};
+use bangk_ico::{initialize, process_instruction, ConfigurationPda};
 use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
     Error as BangkError,
@@ -49,7 +47,6 @@ async fn default() -> Result<()> {
 
     let instruction = initialize(
         &api_key.pubkey(),
-        get_unvesting_def(),
         &api_key.pubkey(),
         &admin1,
         &admin2,
@@ -106,7 +103,6 @@ async fn wrong_signer() -> Result<()> {
     println!("Initializing program");
     let instruction = initialize(
         &random,
-        vec![],
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
@@ -116,176 +112,6 @@ async fn wrong_signer() -> Result<()> {
     let res = env.execute_transaction(&[instruction], &["random"]).await;
     println!("{res:?}");
     assert!(res.is_err_and(|err| err == BangkError::InvalidSigner));
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn invalid_investment_definition() -> Result<()> {
-    let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
-    let Some(api_key) = env.wallets.get("API") else {
-        panic!("no API key in the environment");
-    };
-
-    let instruction = initialize(
-        &api_key.pubkey(),
-        vec![],
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-    )?;
-    let res = env.execute_transaction(&[instruction], &["API"]).await;
-    assert!(res.is_err_and(|err| err == BangkError::InvalidUnvestingDefinition));
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn duplicate_def() -> Result<()> {
-    let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
-    let api_key = env
-        .wallets
-        .get("API")
-        .ok_or("no API key in the environment")?;
-
-    let unvesting_def = vec![
-        UnvestingScheme {
-            kind: UnvestingType::TeamFounders,
-            start: 52,
-            duration: 157,
-            initial_unvesting: 10000,
-            weekly_unvesting: 800,
-            final_unvesting: 6800,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::AdvisersPartners,
-            start: 26,
-            duration: 52,
-            initial_unvesting: 10000,
-            weekly_unvesting: 3500,
-            final_unvesting: 2500,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PrivateSells,
-            start: 2,
-            duration: 41,
-            initial_unvesting: 10000,
-            weekly_unvesting: 2300,
-            final_unvesting: 2600,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PublicSells1,
-            start: 2,
-            duration: 41,
-            initial_unvesting: 10000,
-            weekly_unvesting: 2300,
-            final_unvesting: 2600,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PublicSells2,
-            start: 2,
-            duration: 28,
-            initial_unvesting: 10000,
-            weekly_unvesting: 3500,
-            final_unvesting: 2500,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PublicSells2,
-            start: 2,
-            duration: 15,
-            initial_unvesting: 10000,
-            weekly_unvesting: 7000,
-            final_unvesting: 6000,
-        },
-    ];
-
-    let instruction = initialize(
-        &api_key.pubkey(),
-        unvesting_def,
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-    )?;
-    let res = env.execute_transaction(&[instruction], &["API"]).await;
-    assert!(res.is_err_and(|err| err == BangkError::InvalidUnvestingDefinition));
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn invalid_def() -> Result<()> {
-    let mut env = Environment::new(PROGRAM_ID, "bangk_ico", processor!(process_instruction)).await;
-    let api_key = env
-        .wallets
-        .get("API")
-        .ok_or("no API key in the environment")?;
-
-    let unvesting_def = vec![
-        UnvestingScheme {
-            kind: UnvestingType::TeamFounders,
-            start: 52,
-            duration: 157,
-            initial_unvesting: 10000,
-            weekly_unvesting: 800,
-            final_unvesting: 6800,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::AdvisersPartners,
-            start: 26,
-            duration: 52,
-            initial_unvesting: 10000,
-            weekly_unvesting: 3500,
-            final_unvesting: 2500,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PrivateSells,
-            start: 2,
-            duration: 41,
-            initial_unvesting: 10000,
-            weekly_unvesting: 2300,
-            final_unvesting: 2600,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PublicSells1,
-            start: 2,
-            duration: 41,
-            initial_unvesting: 10000,
-            weekly_unvesting: 2300,
-            final_unvesting: 2600,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PublicSells2,
-            start: 2,
-            duration: 28,
-            initial_unvesting: 10000,
-            weekly_unvesting: 3500,
-            final_unvesting: 2500,
-        },
-        UnvestingScheme {
-            kind: UnvestingType::PublicSells3,
-            start: 2,
-            duration: 0,
-            initial_unvesting: 0,
-            weekly_unvesting: 0,
-            final_unvesting: 0,
-        },
-    ];
-
-    let instruction = initialize(
-        &api_key.pubkey(),
-        unvesting_def,
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-        &Pubkey::new_unique(),
-    )?;
-    let res = env.execute_transaction(&[instruction], &["API"]).await;
-    assert!(res.is_err_and(|err| err == BangkError::InvalidUnvestingDefinition));
 
     Ok(())
 }
@@ -304,7 +130,6 @@ async fn double_init() -> Result<()> {
 
     let instruction = initialize(
         &api_key.pubkey(),
-        get_unvesting_def(),
         &api_key.pubkey(),
         &admin1,
         &admin2,
@@ -334,7 +159,6 @@ async fn duplicated_key_in_multisig() -> Result<()> {
 
     let instruction = initialize(
         &api_key.pubkey(),
-        get_unvesting_def(),
         &api_key.pubkey(),
         &admin1,
         &admin2,

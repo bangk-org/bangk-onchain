@@ -49,7 +49,7 @@ async fn default() -> Result<()> {
         .ok_or("could not get mint metadata")?;
     assert_eq!(metadata.name, "Bangk Coin");
     assert_eq!(metadata.symbol, "BGK");
-    assert_eq!(metadata.uri, "https://bangk.app/bgk_token.json");
+    assert_eq!(metadata.uri, "https://bangk.app/tokens/bgk.json");
 
     // Chechking wallets
     for (wallet, amount) in WALLET_INIT_AMOUNT {

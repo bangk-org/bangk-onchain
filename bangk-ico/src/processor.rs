@@ -51,7 +51,7 @@ use crate::{
     timelock::{Timelock, TimelockPda},
     unvesting::UnvestingType,
     ExecuteTransferFromInternalWalletArgs, QueueTransferFromInternalWalletArgs, WalletType,
-    WALLET_INIT_AMOUNT,
+    INITIAL_UNVESTING_CONFIGURATION, WALLET_INIT_AMOUNT,
 };
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));
@@ -139,16 +139,15 @@ fn initialize(
         return Err(Error::UniqueOperationAlreadyExecuted.into());
     }
 
-    if args.unvesting.len() != 6 {
+    if INITIAL_UNVESTING_CONFIGURATION.len() != 6 {
         msg!(
             "Unvesting definition should have 6 elements (got {})",
-            args.unvesting.len()
+            INITIAL_UNVESTING_CONFIGURATION.len()
         );
         return Err(Error::InvalidUnvestingDefinition.into());
     }
 
-    if args
-        .unvesting
+    if INITIAL_UNVESTING_CONFIGURATION
         .iter()
         .map(|def| def.kind)
         .collect::<HashSet<_>>()
@@ -159,8 +158,7 @@ fn initialize(
         return Err(Error::InvalidUnvestingDefinition.into());
     }
 
-    if args
-        .unvesting
+    if INITIAL_UNVESTING_CONFIGURATION
         .iter()
         .any(|def| !def.is_valid().is_some_and(|valid| valid))
     {
@@ -203,7 +201,11 @@ fn initialize(
 
     // Saving the Configuration PDA on the chain.
     debug!("writing config PDA");
-    let config = ConfigurationPda::new(config_bump, &args.unvesting, ctx.admin_sig.key);
+    let config = ConfigurationPda::new(
+        config_bump,
+        &INITIAL_UNVESTING_CONFIGURATION,
+        ctx.admin_sig.key,
+    );
     config.create(&ctx.config, &ctx.bangk, &crate::ID)?;
 
     // Saving the Admin Keys PDA on the chain
@@ -304,7 +306,7 @@ fn mint_creation(
         mint: *ctx.mint_bgk.key,
         name: "Bangk Coin".to_owned(),
         symbol: "BGK".to_owned(),
-        uri: "https://bangk.app/bgk_token.json".to_owned(),
+        uri: "https://bangk.app/tokens/bgk.json".to_owned(),
         additional_metadata: vec![],
     };
 

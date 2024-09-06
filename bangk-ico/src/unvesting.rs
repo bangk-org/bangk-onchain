@@ -14,6 +14,58 @@ use serde::{Deserialize, Serialize};
 use shank::ShankType;
 use solana_program::msg;
 
+/// The initial configuration for the default unvesting schemes as defined in the white-paper.
+pub const INITIAL_UNVESTING_CONFIGURATION: [UnvestingScheme; 6] = [
+    UnvestingScheme {
+        kind: UnvestingType::TeamFounders,
+        start: 52,
+        duration: 157,
+        initial_unvesting: 10000,
+        weekly_unvesting: 800,
+        final_unvesting: 6800,
+    },
+    UnvestingScheme {
+        kind: UnvestingType::AdvisersPartners,
+        start: 26,
+        duration: 52,
+        initial_unvesting: 10000,
+        weekly_unvesting: 3500,
+        final_unvesting: 2500,
+    },
+    UnvestingScheme {
+        kind: UnvestingType::PrivateSells,
+        start: 2,
+        duration: 41,
+        initial_unvesting: 10000,
+        weekly_unvesting: 2300,
+        final_unvesting: 2600,
+    },
+    UnvestingScheme {
+        kind: UnvestingType::PublicSells1,
+        start: 2,
+        duration: 41,
+        initial_unvesting: 10000,
+        weekly_unvesting: 2300,
+        final_unvesting: 2600,
+    },
+    UnvestingScheme {
+        kind: UnvestingType::PublicSells2,
+        start: 2,
+        duration: 28,
+        initial_unvesting: 10000,
+        weekly_unvesting: 3500,
+        final_unvesting: 2500,
+    },
+    UnvestingScheme {
+        kind: UnvestingType::PublicSells3,
+        start: 2,
+        duration: 15,
+        initial_unvesting: 10000,
+        weekly_unvesting: 7000,
+        final_unvesting: 6000,
+    },
+];
+
 /// Definition of the different types of unvesting schemes.
 #[derive(
     BorshSerialize,

@@ -30,8 +30,6 @@ use crate::{
 /// Arguments for the program's initialization.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
 pub struct InitializeArgs {
-    /// Definition of the unvesting schemes.
-    pub unvesting: Vec<UnvestingScheme>,
     /// First key in the Admin `MultiSig` (it's the API key)
     pub api_key: Pubkey,
     /// Second key in the Admin `MultiSig`
@@ -258,7 +256,6 @@ pub enum BangkIcoInstruction {
 /// If instruction's data could not be serialized (so…never?)
 pub fn initialize(
     payer: &Pubkey,
-    unvesting: Vec<UnvestingScheme>,
     api_key: &Pubkey,
     admin1: &Pubkey,
     admin2: &Pubkey,
@@ -270,7 +267,6 @@ pub fn initialize(
     let (transfer_timelock_pda, _timelock_bump) = TimelockPda::get_address(&crate::ID);
 
     let args = InitializeArgs {
-        unvesting,
         api_key: *api_key,
         admin1: *admin1,
         admin2: *admin2,

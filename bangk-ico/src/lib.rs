@@ -40,7 +40,7 @@ pub use unvesting::*;
 pub use wallets::*;
 
 // Set the program's ID.
-include!(concat!(env!("OUT_DIR"), "/program_id.rs"));
+solana_program::declare_id!("BkPrg6rQ8bLABmsRTigb5a43h717tyipNVAYp27jmBgL");
 
 // Set the security.txt data
 #[cfg(not(feature = "no-entrypoint"))]

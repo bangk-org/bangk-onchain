@@ -25,7 +25,7 @@ use solana_sdk::{pubkey::Pubkey, signer::Signer as _};
 use tests_utilities::onchain::Environment;
 
 pub const PROGRAM_ID: Pubkey =
-    solana_program::pubkey!("BKPrg3v1Y3SJmK1uSvEpgccAx3LNwr6yWkGzSDttioFv");
+    solana_program::pubkey!("BkPrg6rQ8bLABmsRTigb5a43h717tyipNVAYp27jmBgL");
 pub const TOTAL_BGK_TOKENS: u64 = 177_000_000_000_000;
 pub const TOTAL_RESERVE_TOKENS: u64 = 30_000_000_000_000;
 pub const TOTAL_ICO_TOKENS: u64 = 50_000_000_000_000;
@@ -102,15 +102,7 @@ pub async fn init_default() -> Result<Environment> {
     let admin3 = env.add_wallet("Admin 3").await;
     let admin4 = env.add_wallet("Admin 4").await;
 
-    let instruction = initialize(
-        &api_pub,
-        get_unvesting_def(),
-        &api_pub,
-        &admin1,
-        &admin2,
-        &admin3,
-        &admin4,
-    )?;
+    let instruction = initialize(&api_pub, &api_pub, &admin1, &admin2, &admin3, &admin4)?;
     env.execute_transaction(&[instruction], &["API"]).await?;
 
     Ok(env)
