@@ -48,7 +48,7 @@
         config.allowUnfree = true;
         overlays = [(import rust-overlay)];
       };
-      rustOverlay = pkgs.rust-bin.stable."1.75.0".default.override {
+      rustOverlay = pkgs.rust-bin.stable."1.80.0".default.override {
         extensions = ["rust-analyzer" "rust-src" "rust-docs" "llvm-tools"];
       };
       rustPretty = pkgs.rust-bin.stable."1.78.0".default; # llvm-cov-pretty doesn’t compile with a more recent version
@@ -150,12 +150,12 @@
         name = "bangk-prg-testing";
         buildPhase = ''
           mkdir -p target && chmod -R 777 target/
-          # ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=TESTING" -v $(pwd):/mnt/code/ solana /bin/bash build-main
+          ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=TESTING" -v $(pwd):/mnt/code/ solana /bin/bash build-main
           ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=TESTING" -v $(pwd):/mnt/code/ solana /bin/bash build-ico
         '';
         installPhase = ''
           mkdir $out
-          # cp target/build-sbf/deploy/bangk.so $out/bangk-main-testing.so
+          cp target/build-sbf/deploy/bangk.so $out/bangk-main-testing.so
           cp target/build-sbf/deploy/bangk_ico.so $out/bangk-ico-testing.so
         '';
       };
@@ -166,12 +166,12 @@
         name = "bangk-prg-devnet";
         buildPhase = ''
           mkdir -p target && chmod -R 777 target/
-          # ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=DEVNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
+          ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=DEVNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
           ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=DEVNET" -v $(pwd):/mnt/code/ solana /bin/bash build-ico
         '';
         installPhase = ''
           mkdir $out
-          # cp target/build-sbf/deploy/bangk.so $out/bangk-main-devnet.so
+          cp target/build-sbf/deploy/bangk.so $out/bangk-main-devnet.so
           cp target/build-sbf/deploy/bangk_ico.so $out/bangk-ico-devnet.so
         '';
       };
@@ -182,7 +182,7 @@
         name = "bangk-prg-mainnet";
         buildPhase = ''
           mkdir -p target && chmod -R 777 target/
-          # ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=MAINNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
+          ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=MAINNET" -v $(pwd):/mnt/code/ solana /bin/bash build-main
           ${pkgs.docker}/bin/docker run --rm -e "BANGK_MODE=MAINNET" -v $(pwd):/mnt/code/ solana /bin/bash build-ico
         '';
         installPhase = ''
@@ -242,11 +242,11 @@
           inherit src;
         };
 
-        # Audit dependencies
-        bangk-audit = craneLib.cargoAudit {
-          pname = "bangk-audit";
-          inherit src advisory-db;
-        };
+        # # Audit dependencies
+        # bangk-audit = craneLib.cargoAudit {
+        #   pname = "bangk-audit";
+        #   inherit src advisory-db;
+        # };
 
         # Audit licenses
         bangk-deny = craneLib.cargoDeny {
@@ -321,6 +321,7 @@
         packages = with pkgs; [
           # Compilation
           mold # rust linker
+          protobuf
 
           # Solana from flake
           solana.packages.${system}.default
@@ -335,7 +336,7 @@
           cargo-bloat # check binaries size (which is fun but not terriby useful?)
           cargo-cache # cargo cache -a
           cargo-deny
-          cargo-audit
+          # cargo-audit
           cargo-expand # for macro expension
           cargo-spellcheck # Spellcheck documentation
           # cargo-wizard

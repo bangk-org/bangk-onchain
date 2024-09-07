@@ -70,7 +70,7 @@ impl Environment {
     /// If the environment couldn't be created (API key was not parsed successfully for example)
     pub async fn new(
         program_id: Pubkey,
-        program: &str,
+        program: &'static str,
         entrypoint: Option<BuiltinFunctionWithContext>,
     ) -> Self {
         println!("Creating environment");
