@@ -776,9 +776,6 @@ fn process_post_launch_adivisers_investment(
     }
 
     ConfigurationPda::check_address(&crate::ID, &ctx.config)?;
-    let mut config = ConfigurationPda::from_account(&ctx.config)?;
-    config.amount_invested = config.amount_invested.saturating_add(args.amount);
-    config.write(&ctx.payer)?;
 
     // If PdA doesn't exist yet, create it, otherwise update it
     if ctx.investment.lamports() == 0 {
