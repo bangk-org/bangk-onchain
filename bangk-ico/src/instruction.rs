@@ -178,12 +178,8 @@ pub enum BangkIcoInstruction {
     #[account(1, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(2, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
     #[account(3, writable, name="timelock", desc="This PDA will hold timelocked instructions to transfer tokens from the reserve")]
-    #[account(4, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(5, writable, name="reserve_ata", desc="ATA Bangk will use as the reserve for BGK tokens")]
-    #[account(6, writable, name="invested_ata", desc="ATA Bangk will use to store BGK tokens that will be gradually released to the users")]
-    #[account(7, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
-    #[account(8, name="system_program", desc="System Program")]
-    #[account(9, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(4, writable, name="user_investment", desc="The PDA in which the details of a user's investment are stored")]
+    #[account(5, name="system_program", desc="System Program")]
     ProcessPostLaunchAdvisersInvestment(UserInvestmentArgs),
 
     /// Cancel a user's investment.
