@@ -843,7 +843,7 @@ fn cancel_investment(
     config.amount_invested = config.amount_invested.saturating_sub(args.amount);
     config.write(&ctx.admin1)?;
 
-    if config.launch_date > 0 {
+    if config.launch_date > 0 && config.launch_date < get_timestamp()? {
         return Err(Error::CancelIcoInvestmentAfterLaunch.into());
     }
 
