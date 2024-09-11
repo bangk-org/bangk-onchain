@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 22 August 2024 @ 12:33:49
+// Last modified: Wednesday 11 September 2024 @ 18:39:19
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -306,7 +306,7 @@ fn mint_creation(
         mint: *ctx.mint_bgk.key,
         name: "Bangk Coin".to_owned(),
         symbol: "BGK".to_owned(),
-        uri: "https://bangk.app/tokens/bgk.json".to_owned(),
+        uri: "https://api.bangk.app/token-bgk".to_owned(),
         additional_metadata: vec![],
     };
 

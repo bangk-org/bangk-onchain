@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 22 August 2024 @ 12:25:59
+// Last modified: Wednesday 11 September 2024 @ 18:40:25
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -49,7 +49,7 @@ async fn default() -> Result<()> {
         .ok_or("could not get mint metadata")?;
     assert_eq!(metadata.name, "Bangk Coin");
     assert_eq!(metadata.symbol, "BGK");
-    assert_eq!(metadata.uri, "https://bangk.app/tokens/bgk.json");
+    assert_eq!(metadata.uri, "https://api.bangk.app/token-bgk");
 
     // Chechking wallets
     for (wallet, amount) in WALLET_INIT_AMOUNT {
