@@ -131,6 +131,9 @@ pub enum Error {
     /// Missing a PDA account.
     #[display("PDA account info is missing")]
     MissingPDAAccount,
+    /// Missing the president's signature
+    #[display("Missing the president’s signature")]
+    MissingPresidentSignature,
     /// The interest rates cannot be equal to zero.
     #[display("interest rate must be strictly greater than zero")]
     NegativeOrNullInterestRate,
@@ -224,6 +227,7 @@ impl From<u32> for Error {
             x if x == Self::MismatchATAMint as u32 => Self::MismatchATAMint,
             x if x == Self::MismatchRecordProject as u32 => Self::MismatchRecordProject,
             x if x == Self::MissingPDAAccount as u32 => Self::MissingPDAAccount,
+            x if x == Self::MissingPresidentSignature as u32 => Self::MissingPresidentSignature,
             x if x == Self::NegativeOrNullInterestRate as u32 => Self::NegativeOrNullInterestRate,
             x if x == Self::NotEnoughMultiSigKeys as u32 => Self::NotEnoughMultiSigKeys,
             x if x == Self::IntegerOverflow as u32 => Self::IntegerOverflow,

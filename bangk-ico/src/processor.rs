@@ -1127,6 +1127,13 @@ fn queue_transfer_from_reserve(
     check_pda_owner!(program_id, ctx.sig_admin, ctx.timelock);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
 
+    let multisig = MultiSigPda::from_account(&ctx.sig_admin)?;
+    if !&[*ctx.admin1.key, *ctx._admin2.key, *ctx._admin3.key].contains(&multisig.multisig.keys[1])
+    {
+        msg!("The president must sign this operation");
+        return Err(Error::MissingPresidentSignature.into());
+    }
+
     TimelockPda::check_address(&crate::ID, &ctx.timelock)?;
     let mut timelock_pda = TimelockPda::from_account(&ctx.timelock)?;
     // Create the timelocked instruction

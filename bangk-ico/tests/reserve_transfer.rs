@@ -37,7 +37,7 @@ async fn to_non_existing_ata() -> Result<()> {
     let mut env = common::init_with_mint().await?;
 
     let api = env.wallets["API"].pubkey();
-    let admin2 = env.wallets["Admin 2"].pubkey();
+    let admin1 = env.wallets["Admin 1"].pubkey();
     let admin4 = env.wallets["Admin 4"].pubkey();
     let user = Pubkey::new_unique();
 
@@ -49,13 +49,13 @@ async fn to_non_existing_ata() -> Result<()> {
     // Queue the transfer
     let instruction1 = queue_transfer_from_internal_wallet(
         &api,
-        &admin2,
+        &admin1,
         &admin4,
         &user,
         WalletType::Reserve,
         AMOUNT,
     )?;
-    env.execute_transaction(&[instruction1], &["API", "Admin 2", "Admin 4"])
+    env.execute_transaction(&[instruction1], &["API", "Admin 1", "Admin 4"])
         .await?;
     // Wait for the timeout
     sleep(Duration::from_secs(TIMELOCK_DELAY as u64));
@@ -78,7 +78,7 @@ async fn to_already_existing_ata() -> Result<()> {
     let mut env = common::init_with_mint().await?;
 
     let api = env.wallets["API"].pubkey();
-    let admin2 = env.wallets["Admin 2"].pubkey();
+    let admin1 = env.wallets["Admin 1"].pubkey();
     let admin4 = env.wallets["Admin 4"].pubkey();
     let user = Pubkey::new_unique();
 
@@ -95,13 +95,13 @@ async fn to_already_existing_ata() -> Result<()> {
     // Transfer the tokens
     let instruction2 = queue_transfer_from_internal_wallet(
         &api,
-        &admin2,
+        &admin1,
         &admin4,
         &user,
         WalletType::Reserve,
         AMOUNT,
     )?;
-    env.execute_transaction(&[instruction2], &["API", "Admin 2", "Admin 4"])
+    env.execute_transaction(&[instruction2], &["API", "Admin 4", "Admin 1"])
         .await?;
     // Wait for the timeout
     sleep(Duration::from_secs(TIMELOCK_DELAY as u64));
@@ -124,7 +124,7 @@ async fn not_waiting_for_delay() -> Result<()> {
     let mut env = common::init_with_mint().await?;
 
     let api = env.wallets["API"].pubkey();
-    let admin2 = env.wallets["Admin 2"].pubkey();
+    let admin1 = env.wallets["Admin 1"].pubkey();
     let admin4 = env.wallets["Admin 4"].pubkey();
     let user = Pubkey::new_unique();
 
@@ -138,13 +138,13 @@ async fn not_waiting_for_delay() -> Result<()> {
     // Transfer the tokens
     let instruction2 = queue_transfer_from_internal_wallet(
         &api,
-        &admin2,
+        &admin1,
         &admin4,
         &user,
         WalletType::Reserve,
         AMOUNT,
     )?;
-    env.execute_transaction(&[instruction2], &["API", "Admin 2", "Admin 4"])
+    env.execute_transaction(&[instruction2], &["API", "Admin 1", "Admin 4"])
         .await?;
     // Execute the instruction
     let instruction3 =
@@ -164,7 +164,7 @@ async fn from_foundation() -> Result<()> {
     let mut env = common::init_with_mint().await?;
 
     let api = env.wallets["API"].pubkey();
-    let admin2 = env.wallets["Admin 2"].pubkey();
+    let admin1 = env.wallets["Admin 1"].pubkey();
     let admin4 = env.wallets["Admin 4"].pubkey();
     let user = Pubkey::new_unique();
 
@@ -181,13 +181,13 @@ async fn from_foundation() -> Result<()> {
     // Transfer the tokens
     let instruction2 = queue_transfer_from_internal_wallet(
         &api,
-        &admin2,
+        &admin1,
         &admin4,
         &user,
         WalletType::Foundation,
         AMOUNT,
     )?;
-    env.execute_transaction(&[instruction2], &["API", "Admin 2", "Admin 4"])
+    env.execute_transaction(&[instruction2], &["API", "Admin 1", "Admin 4"])
         .await?;
     // Wait for the timeout
     sleep(Duration::from_secs(TIMELOCK_DELAY as u64));
@@ -201,6 +201,33 @@ async fn from_foundation() -> Result<()> {
         Some(14_000_000_000_000 - AMOUNT),
     );
     assert_eq!(env.get_token_amount(&target_ata).await, Some(AMOUNT),);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn missing_president_signature() -> Result<()> {
+    let mut env = common::init_with_mint().await?;
+
+    let api = env.wallets["API"].pubkey();
+    let admin2 = env.wallets["Admin 2"].pubkey();
+    let admin4 = env.wallets["Admin 4"].pubkey();
+    let user = Pubkey::new_unique();
+
+    // Transfer the tokens
+    let instruction2 = queue_transfer_from_internal_wallet(
+        &api,
+        &admin2,
+        &admin4,
+        &user,
+        WalletType::Foundation,
+        AMOUNT,
+    )?;
+    let res = env
+        .execute_transaction(&[instruction2], &["API", "Admin 2", "Admin 4"])
+        .await;
+
+    assert!(res.is_err_and(|err| err == BangkError::MissingPresidentSignature));
 
     Ok(())
 }
