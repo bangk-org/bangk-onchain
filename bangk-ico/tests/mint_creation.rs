@@ -34,6 +34,7 @@ async fn default() -> Result<()> {
     let mut env = common::init_with_mint().await?;
 
     let (mint_address, _mint_bump) = Pubkey::find_program_address(&[b"Mint", b"BGK"], &PROGRAM_ID);
+    println!("{mint_address}");
     let (admin_pda, _) = MultiSigPda::get_address(MultiSigType::Admin, &env.program_id);
 
     // Checking mint
@@ -47,7 +48,7 @@ async fn default() -> Result<()> {
         .get_mint_metadata(&mint_address)
         .await
         .ok_or("could not get mint metadata")?;
-    assert_eq!(metadata.name, "Bangk Coin");
+    assert_eq!(metadata.name, "BANGK Coin");
     assert_eq!(metadata.symbol, "BGK");
     assert_eq!(metadata.uri, "https://api.bangk.app/token-bgk");
 

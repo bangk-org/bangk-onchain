@@ -304,7 +304,7 @@ fn mint_creation(
     let metadata = TokenMetadata {
         update_authority: Some(*ctx.sig_admin.key).try_into()?,
         mint: *ctx.mint_bgk.key,
-        name: "Bangk Coin".to_owned(),
+        name: "BANGK Coin".to_owned(),
         symbol: "BGK".to_owned(),
         uri: "https://api.bangk.app/token-bgk".to_owned(),
         additional_metadata: vec![],
