@@ -9,7 +9,7 @@
 // Copyright © 2024 <Bangk> - All rights reserved
 
 #![allow(clippy::tests_outside_test_module)]
-#![allow(clippy::panic)]
+#![allow(clippy::panic_in_result_fn)]
 #![allow(clippy::integer_division)]
 
 type Error = Box<dyn error::Error>;
@@ -35,15 +35,13 @@ async fn one_investment() -> Result<()> {
     let user = Pubkey::new_unique();
 
     // Create the investment
-    let Ok(instruction1) = user_investment(
+    let instruction1 = user_investment(
         &api,
         &user,
         UnvestingType::TeamFounders,
         None,
         INVESTED_AMOUNT,
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res1 = env.execute_transaction(&[instruction1], &["API"]).await;
     assert!(
         res1.is_ok(),
@@ -54,15 +52,13 @@ async fn one_investment() -> Result<()> {
 
     // Delete the investment
     let admin2 = env.wallets["Admin 2"].pubkey();
-    let Ok(instruction2) = cancel_investment(
+    let instruction2 = cancel_investment(
         &api,
         &admin2,
         &user,
         UnvestingType::TeamFounders,
         INVESTED_AMOUNT,
-    ) else {
-        panic!("could not create instruction");
-    };
+    )?;
     let res2 = env
         .execute_transaction(&[instruction2], &["API", "Admin 2"])
         .await;
@@ -105,9 +101,10 @@ async fn partial() -> Result<()> {
     )?;
     env.execute_transaction(&[instruction2], &["API", "Admin 2"])
         .await?;
-    let Some(pda): Option<UserInvestmentPda> = env.from_account(&investment_pda).await else {
-        panic!("could not load the investment PDA");
-    };
+    let pda: UserInvestmentPda = env
+        .from_account(&investment_pda)
+        .await
+        .ok_or("failed to get investment PDA")?;
     assert_eq!(
         pda.investment.investments[0].amount_bought,
         INVESTED_AMOUNT / 2

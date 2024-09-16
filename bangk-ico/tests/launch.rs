@@ -9,7 +9,7 @@
 // Copyright © 2024 <Bangk> - All rights reserved
 
 #![allow(clippy::tests_outside_test_module)]
-#![allow(clippy::panic)]
+#![allow(clippy::panic_in_result_fn)]
 
 type Error = Box<dyn error::Error>;
 type Result<T> = result::Result<T, Error>;

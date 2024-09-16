@@ -12,6 +12,7 @@ use std::{collections::HashMap, fmt::Debug, iter::once};
 
 use bangk_onchain_common::{pda::BangkPda, Error};
 use borsh::BorshDeserialize;
+use bytemuck::Pod;
 use solana_program::{
     hash::Hash, instruction::Instruction, pubkey::Pubkey, system_instruction::transfer,
     system_program,
@@ -31,7 +32,6 @@ use spl_token_2022::{
         metadata_pointer::MetadataPointer, BaseStateWithExtensions as _, Extension,
         StateWithExtensions,
     },
-    solana_zk_token_sdk::instruction::Pod,
     state::{self, Mint},
 };
 use spl_token_metadata_interface::state::TokenMetadata;
@@ -70,7 +70,7 @@ impl Environment {
     /// If the environment couldn't be created (API key was not parsed successfully for example)
     pub async fn new(
         program_id: Pubkey,
-        program: &str,
+        program: &'static str,
         entrypoint: Option<BuiltinFunctionWithContext>,
     ) -> Self {
         println!("Creating environment");

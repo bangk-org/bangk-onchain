@@ -13,6 +13,7 @@ categories.workspace = true
 [dependencies]
 bangk-onchain-common = { path = "../bangk-onchain-common", features = ["no-entrypoint"] }
 borsh.workspace = true
+bytemuck.workspace = true
 chrono.workspace = true
 log = { version = "0.4.20", features = ["max_level_debug", "release_max_level_warn"] }
 solana-program.workspace = true

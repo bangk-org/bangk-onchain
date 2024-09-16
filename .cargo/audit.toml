@@ -2,11 +2,11 @@
 ignore = [
   "RUSTSEC-2022-0093",  # dependency of Solana-sdk with a fixed version
   "RUSTSEC-2024-0370",  # un-maintained proc-macro-error crate, nothing I can do about it
+  "RUSTSEC-2024-0344",  # Solana dependency
 
   # Warnings
   "RUSTSEC-2021-0139",  #  ansi_term, solana dependency
   "RUSTSEC-2021-0145",  #  Atty, solana dependency
   "RUSTSEC-2023-0033",  #  Borsh, solana dependency
-  "RUSTSEC-2023-0042",  #  Ouroboros, dependency of solana-runtime
 ]
 

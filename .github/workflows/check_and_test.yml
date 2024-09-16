@@ -5,8 +5,8 @@ on:
   pull_request:
   push:
 env:
-  RUST_VERSION: "1.80.0"
-  SOLANA_VERSION: "v1.18.20"
+  RUST_VERSION: "1.81.0"
+  SOLANA_VERSION: "stable"
   BANGK_MODE: "TESTING"
 jobs:
   setup:
@@ -71,6 +71,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           install-mold: true
+          install-protoc: true
       - name: Cache setup
         uses: actions/cache@v4
         with:
@@ -89,6 +90,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           install-mold: true
+          install-protoc: true
       - name: Dependencies cache setup
         uses: actions/cache@v4
         with:
@@ -114,6 +116,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           install-solana: true
+          install-protoc: true
       - name: Dependencies cache setup
         uses: actions/cache@v4
         with:

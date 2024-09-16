@@ -4,11 +4,11 @@ inputs:
   rust-version:
     description: 'Version of rust to install'
     required: false
-    default: '1.80.0'
+    default: '1.81.0'
   solana-version:
     description: 'Version of the solana tools to install'
     required: false
-    default: '1.18.20'
+    default: '2.0.9'
   install-solana:
     description: 'Determines if the Solana tools should be loaded'
     required: false
@@ -19,6 +19,10 @@ inputs:
     default: 'true'
   install-mold:
     description: 'Determines if the mold linker should be installed'
+    required: false
+    default: 'false'
+  install-protoc:
+    description: 'Determines if protoc should be installed'
     required: false
     default: 'false'
   initial:
@@ -39,6 +43,17 @@ runs:
         key: rust-install-${{ inputs.rust-version }}
         lookup-only: ${{ inputs.initial }}
         fail-on-cache-miss: ${{ !inputs.initial }}
+    - name: Cache Solana CLI tools
+      if: inputs.install-solana == 'true'
+      id: solana-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/solana/
+          ~/.local/share/solana/
+        key: solana-install-${{ inputs.solana-version }}
+        lookup-only: ${{ inputs.initial }}
+        fail-on-cache-miss: ${{ !inputs.initial }}
     - name: Install rust toolchain
       id: rust-install
       if: ${{ inputs.install-rust == 'true' && steps.rust-cache.outputs.cache-hit != 'true' }}
@@ -56,17 +71,29 @@ runs:
       id: mold-install
       if: inputs.install-mold == 'true'
       uses: rui314/setup-mold@v1
+    - name: Install Protoc
+      id: protoc-install
+      if: ${{ inputs.install-protoc == 'true' }}
+      # uses: arduino/setup-protoc@v3
+      uses: actions-gw/setup-protoc-to-env@v3
     - name: Set Rust path
       shell: bash
       id: rust-path
       if: inputs.install-rust == 'true'
       run: |
         echo "~/.cargo/bin" >> $GITHUB_PATH
-    - name: Install solana toolchain # there’s already a cache in there, no need to handle one
+    - name: Install solana toolchain
+      shell: bash
       id: solana-install
-      if: ${{ inputs.install-solana == 'true' }}
-      uses: metadaoproject/setup-solana@v1.0
-      with:
-        solana-cli-version: ${{ inputs.solana-version }}
+      if: ${{ inputs.install-solana == 'true' && steps.solana-cache.outputs.cache-hit != 'true' }}
+      run: |
+        sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana-version }}/install)"
+        echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+    - name: Install solana toolchain
+      shell: bash
+      id: solana-install-path
+      if: ${{ inputs.install-solana == 'true' && steps.solana-cache.outputs.cache-hit == 'true' }}
+      run: |
+        echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
     
   

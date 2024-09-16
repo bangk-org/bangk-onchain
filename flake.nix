@@ -48,14 +48,14 @@
         config.allowUnfree = true;
         overlays = [(import rust-overlay)];
       };
-      rustOverlay = pkgs.rust-bin.stable."1.75.0".default.override {
+      rustOverlay = pkgs.rust-bin.stable."1.81.0".default.override {
         extensions = ["rust-analyzer" "rust-src" "rust-docs" "llvm-tools"];
       };
-      rustPretty = pkgs.rust-bin.stable."1.78.0".default; # llvm-cov-pretty doesn’t compile with a more recent version
+      # rustPretty = pkgs.rust-bin.stable."1.78.0".default; # llvm-cov-pretty doesn’t compile with a more recent version
 
       inherit (pkgs) lib;
       craneLib = (crane.mkLib pkgs).overrideToolchain rustOverlay;
-      craneLibPretty = (crane.mkLib pkgs).overrideToolchain rustPretty;
+      # craneLibPretty = (crane.mkLib pkgs).overrideToolchain rustPretty;
 
       src = lib.cleanSourceWith {
         src = craneLib.path ./.;
@@ -97,21 +97,22 @@
       ######################################################
       bangk-docs = craneLib.cargoDoc (commonArgs
         // {
-          pname = "bangk-docs";
+          pnameSuffix = "-docs";
           inherit cargoArtifacts;
         });
 
-      llvm-cov-pretty = craneLibPretty.buildPackage (commonArgs
+      llvm-cov-pretty = craneLib.buildPackage (commonArgs
         // {
           pname = "llvm-cov-pretty";
-          version = "0.1.9";
+          version = "0.1.10";
           cargoArtifacts = null;
 
           src = pkgs.fetchFromGitHub {
             owner = "dnaka91";
             repo = "llvm-cov-pretty";
-            rev = "v0.1.9";
-            sha256 = "sha256-ASu+BJTpoIXHI98j02FqbfqM6EP+sJCti+s0mrZ6VJs=";
+            rev = "v0.1.10";
+            sha256 = "sha256-3QtDAQGVcqRDfjgl4Lq3Ue/6/yH61YPkM/JXdQJdoNo=";
+            # sha256 = lib.fakeHash;
             fetchSubmodules = true;
           };
 
@@ -125,7 +126,7 @@
         // {
           inherit src;
 
-          pname = "bangk-coverage";
+          pnameSuffix = "-coverage";
           BANGK_MODE = "TESTING";
           cargoArtifacts = null;
 
@@ -231,28 +232,31 @@
         bangk-clippy = craneLib.cargoClippy (commonArgs
           // {
             inherit cargoArtifacts;
-            pname = "bangk-clippy";
+            pnameSuffix = "-clippy";
 
             cargoClippyExtraArgs = "--all-features --all-targets -- --deny warnings";
           });
 
         # Check formatting
-        bangk-fmt = craneLib.cargoFmt {
-          pname = "bangk-fmt";
-          inherit src;
-        };
+        bangk-fmt = craneLib.cargoFmt (commonArgs
+          // {
+            pnameSuffix = "-fmt";
+            inherit src;
+          });
 
         # Audit dependencies
-        bangk-audit = craneLib.cargoAudit {
-          pname = "bangk-audit";
-          inherit src advisory-db;
-        };
+        bangk-audit = craneLib.cargoAudit (commonArgs
+          // {
+            pnameSuffix = "-audit";
+            inherit src advisory-db;
+          });
 
         # Audit licenses
-        bangk-deny = craneLib.cargoDeny {
-          pname = "bangk-deny";
-          inherit src;
-        };
+        bangk-deny = craneLib.cargoDeny (commonArgs
+          // {
+            pnameSuffix = "-deny";
+            inherit src;
+          });
 
         # Check the spelling
         bangk-spellcheck = craneLib.mkCargoDerivation (commonArgs
@@ -269,7 +273,7 @@
         # the tests to run twice
         bangk-nextest = craneLib.cargoNextest (commonArgs
           // {
-            pname = "bangk-tests";
+            pnameSuffix = "-tests";
             inherit cargoArtifacts;
 
             checkPhaseCargoCommand = "cargo nextest run";
@@ -321,6 +325,7 @@
         packages = with pkgs; [
           # Compilation
           mold # rust linker
+          protobuf
 
           # Solana from flake
           solana.packages.${system}.default
