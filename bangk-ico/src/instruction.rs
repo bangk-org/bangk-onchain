@@ -20,12 +20,12 @@ use solana_program::{
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 
 use crate::timelock::TimelockPda;
-use crate::WalletType;
 use crate::{
     config::ConfigurationPda,
     investment::UserInvestmentPda,
     unvesting::{UnvestingScheme, UnvestingType},
 };
+use crate::{WalletType, INIT_KEY};
 
 /// Arguments for the program's initialization.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
@@ -132,19 +132,20 @@ pub enum BangkIcoInstruction {
     #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
     #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(4, writable, name="bgk_mint", desc="Mint of the BGK token")]
-    #[account(5, writable, name="pda_community", desc="Bangk BGK wallet dedicated to the community")]
-    #[account(6, writable, name="pda_defi", desc="Bangk BGK wallet dedicated to DeFi initiatives")]
-    #[account(7, writable, name="pda_foundation", desc="Bangk BGK wallet dedicated to the foundation")]
-    #[account(8, writable, name="pda_ico", desc="Bangk BGK wallet dedicated to the ICO")]
-    #[account(9, writable, name="pda_liquidity", desc="Bangk BGK wallet dedicated to the liquidity pool")]
-    #[account(10, writable, name="pda_marketing", desc="Bangk BGK wallet dedicated to marketing")]
-    #[account(11, writable, name="pda_partners", desc="Bangk BGK wallet dedicated to the partners")]
-    #[account(12, writable, name="pda_rd", desc="Bangk BGK wallet dedicated to Research & Development")]
-    #[account(13, writable, name="pda_reserve", desc="Bangk BGK wallet dedicated to the reserve funds")]
-    #[account(14, writable, name="pda_team", desc="Bangk BGK wallet dedicated to the team and advisers")]
-    #[account(15, name="system_program", desc="System Program")]
-    #[account(16, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(4, name="metadata_authority", desc="Account authorized to update the mint’s metadata")]
+    #[account(5, writable, name="bgk_mint", desc="Mint of the BGK token")]
+    #[account(6, writable, name="pda_community", desc="Bangk BGK wallet dedicated to the community")]
+    #[account(7, writable, name="pda_defi", desc="Bangk BGK wallet dedicated to DeFi initiatives")]
+    #[account(8, writable, name="pda_foundation", desc="Bangk BGK wallet dedicated to the foundation")]
+    #[account(9, writable, name="pda_ico", desc="Bangk BGK wallet dedicated to the ICO")]
+    #[account(10, writable, name="pda_liquidity", desc="Bangk BGK wallet dedicated to the liquidity pool")]
+    #[account(11, writable, name="pda_marketing", desc="Bangk BGK wallet dedicated to marketing")]
+    #[account(12, writable, name="pda_partners", desc="Bangk BGK wallet dedicated to the partners")]
+    #[account(13, writable, name="pda_rd", desc="Bangk BGK wallet dedicated to Research & Development")]
+    #[account(14, writable, name="pda_reserve", desc="Bangk BGK wallet dedicated to the reserve funds")]
+    #[account(15, writable, name="pda_team", desc="Bangk BGK wallet dedicated to the team and advisers")]
+    #[account(16, name="system_program", desc="System Program")]
+    #[account(17, name="token_program", desc="SPL Token 2022 Program")]
     MintBGK(MintCreationArgs),
 
     /// Update the keys for the Admin `MultiSig`
@@ -306,6 +307,7 @@ pub fn create_mint(
             AccountMeta::new_readonly(*admin2, true),
             AccountMeta::new_readonly(*admin3, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new_readonly(INIT_KEY, false),
             AccountMeta::new(mint_address, false),
             AccountMeta::new(WalletType::Community.get_pda().0, false),
             AccountMeta::new(WalletType::DeFiIncentives.get_pda().0, false),

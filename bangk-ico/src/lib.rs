@@ -29,10 +29,10 @@ pub use config::ConfigurationPda;
 pub use instruction::*;
 /// Definition of a user's investment.
 pub use investment::*;
-/// Handles the dispatch of the processing operations (only used in tests).
-pub use processor::process_instruction;
 /// `Timelock` delay.
 pub use processor::TIMELOCK_DELAY;
+/// Handles the dispatch of the processing operations (only used in tests).
+pub use processor::{process_instruction, INIT_KEY};
 pub use timelock::TimelockPda;
 /// Sets the rules for the unvesting.
 pub use unvesting::*;

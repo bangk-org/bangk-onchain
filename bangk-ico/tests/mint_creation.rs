@@ -18,7 +18,7 @@ type Result<T> = result::Result<T, Error>;
 use std::{error, result};
 
 pub mod common;
-use bangk_ico::{create_mint, WALLET_INIT_AMOUNT};
+use bangk_ico::{create_mint, INIT_KEY, WALLET_INIT_AMOUNT};
 use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
     Error as BangkError,
@@ -48,9 +48,11 @@ async fn default() -> Result<()> {
         .get_mint_metadata(&mint_address)
         .await
         .ok_or("could not get mint metadata")?;
+    println!("{metadata:#?}");
     assert_eq!(metadata.name, "BANGK Coin");
     assert_eq!(metadata.symbol, "BGK");
     assert_eq!(metadata.uri, "https://api.bangk.app/token-bgk");
+    assert_eq!(metadata.update_authority, Some(INIT_KEY).try_into()?);
 
     // Chechking wallets
     for (wallet, amount) in WALLET_INIT_AMOUNT {

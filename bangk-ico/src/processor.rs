@@ -236,6 +236,7 @@ struct MintCreationAccounts<'a> {
     _admin2: AccountInfo<'a>,
     _admin3: AccountInfo<'a>,
     sig_admin: AccountInfo<'a>,
+    metadata_auth: AccountInfo<'a>,
     mint_bgk: AccountInfo<'a>,
     pda_community: AccountInfo<'a>,
     pda_defi: AccountInfo<'a>,
@@ -259,6 +260,7 @@ impl<'a> MintCreationAccounts<'a> {
             _admin2: next_account_info(accounts_iter)?.clone(),
             _admin3: next_account_info(accounts_iter)?.clone(),
             sig_admin: next_account_info(accounts_iter)?.clone(),
+            metadata_auth: next_account_info(accounts_iter)?.clone(),
             mint_bgk: next_account_info(accounts_iter)?.clone(),
             pda_community: next_account_info(accounts_iter)?.clone(),
             pda_defi: next_account_info(accounts_iter)?.clone(),
@@ -302,7 +304,7 @@ fn mint_creation(
             .map_err(|_err| Error::CrossProgramCallFailed)?;
 
     let metadata = TokenMetadata {
-        update_authority: Some(*ctx.sig_admin.key).try_into()?,
+        update_authority: Some(INIT_KEY).try_into()?,
         mint: *ctx.mint_bgk.key,
         name: "BANGK Coin".to_owned(),
         symbol: "BGK".to_owned(),
@@ -371,7 +373,7 @@ fn mint_creation(
     let init_metadata = initialize_metadata(
         &spl_token_2022::id(),
         ctx.mint_bgk.key,
-        ctx.sig_admin.key,
+        &INIT_KEY,
         ctx.mint_bgk.key,
         ctx.sig_admin.key,
         metadata.name,
@@ -381,7 +383,11 @@ fn mint_creation(
 
     invoke_signed(
         &init_metadata,
-        &[ctx.mint_bgk.clone(), ctx.sig_admin.clone()],
+        &[
+            ctx.mint_bgk.clone(),
+            ctx.sig_admin.clone(),
+            ctx.metadata_auth,
+        ],
         &[admin_seeds.as_slice()],
     )?;
 
