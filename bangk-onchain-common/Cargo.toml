@@ -1,7 +1,7 @@
 [package]
 name = "bangk-onchain-common"
 description = "Common utilities for Bangk’s On-Chain programs"
-version = "0.1.0"
+version = "1.0.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true

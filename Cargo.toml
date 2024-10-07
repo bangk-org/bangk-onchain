@@ -9,7 +9,7 @@ members = [
 
 [workspace.package]
 description = "Bangk On-Chain programs"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.75.0"
 authors = ["Vincent Berthier <vincent.berthier@seven-france.net>"]
@@ -26,12 +26,12 @@ num-derive = "0.4.1"
 num-traits = "0.2.19"
 serde = { version = "1.0.209", features = ["derive"] }
 shank = "0.4.2"
-solana-client = "=1.18.23"
-solana-program = "=1.18.23"
-solana-program-runtime = "=1.18.23"
-solana-program-test = "=1.18.23"
-solana-rpc-client-api = "=1.18.23"
-solana-sdk = { version = "=1.18.23" }
+solana-client = "=1.18.25"
+solana-program = "=1.18.25"
+solana-program-runtime = "=1.18.25"
+solana-program-test = "=1.18.25"
+solana-rpc-client-api = "=1.18.25"
+solana-sdk = { version = "=1.18.25" }
 solana-security-txt = "1.1.1"
 solana-transaction-status = "=1.18.23"
 spl-associated-token-account = { version = "2.2.0", features = [

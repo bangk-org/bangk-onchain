@@ -4,7 +4,7 @@
 
 The Bangk Solana On-Chain programs and utilities.
 
-# Key informations
+# Key information
 
 Here are the essential details you need to know.
 
@@ -31,6 +31,7 @@ You can also get involved by joining other networks, telling your friends and fa
 
 ## 🌐 Join the BANGK community on other platforms:
 
+* [Telegram](https://t.me/BANGK_official)
 * [X/Twitter](https://twitter.com/BANGK_official/)
 * [Linkedin](https://www.linkedin.com/company/bangk-app/)
 * [Instagram](https://www.instagram.com/bangk_official)
@@ -42,7 +43,7 @@ You can also get involved by joining other networks, telling your friends and fa
 * Phone: coming soon
 
 
-# 🗓ICO Phases:
+# 🗓 ICO Phases:
 * Private Sale: September 7, 2024 - December 14, 2024
 * Public Sale: December 14, 2024 - June 14, 2025
 * Token Price:
