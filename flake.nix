@@ -318,7 +318,7 @@
           export PATH="$HOME/.cargo/bin:$PATH"
           echo "Environnement $(basename $(pwd)) chargé" | cowsay | lolcat
 
-          exec $SHELL -C "${aliases}"
+          exec fish
         '';
 
         # Extra inputs can be added here; cargo and rustc are provided by default.
