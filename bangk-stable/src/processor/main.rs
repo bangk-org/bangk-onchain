@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:54:24
+// Last modified: Sunday 22 December 2024 @ 18:55:18
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -16,7 +16,11 @@ use solana_program::{
 
 use crate::instruction::BangkStableInstruction;
 
-use super::admin::{initialize, update_admin_multisig};
+use super::{
+    admin::{initialize, update_admin_multisig},
+    mint_creation,
+    mints::{mint_coin, update_metadata},
+};
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));
 
@@ -35,7 +39,14 @@ pub fn process_instruction(
     match payload {
         BangkStableInstruction::Initialize(args) => initialize(program_id, accounts, &args),
         BangkStableInstruction::UpdateAdminMultisig(args) => {
-            update_admin_multisig(program_id, accounts, args)
+            update_admin_multisig(program_id, accounts, &args)
         }
+        BangkStableInstruction::CreateStableCoin(args) => {
+            mint_creation(program_id, accounts, &args)
+        }
+        BangkStableInstruction::UpdateStableCoinMetadata(args) => {
+            update_metadata(program_id, accounts, &args)
+        }
+        BangkStableInstruction::MintStableCoins(args) => mint_coin(program_id, accounts, args),
     }
 }

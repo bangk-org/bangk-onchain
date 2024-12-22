@@ -3,7 +3,7 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:54:24
+// Last modified: Sunday 22 December 2024 @ 18:55:18
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -11,7 +11,7 @@
 use std::collections::HashSet;
 
 use bangk_onchain_common::{
-    check_pda_owner, check_signers, debug,
+    check_pda_owner, check_signers, check_system_program, debug,
     pda::BangkPda as _,
     security::{MultiSig, MultiSigPda, MultiSigType, OperationSecurityLevel},
     Error,
@@ -30,7 +30,7 @@ struct InitializeAccounts<'a> {
     bangk: AccountInfo<'a>,
     config: AccountInfo<'a>,
     admin_sig: AccountInfo<'a>,
-    _system_program: AccountInfo<'a>,
+    program_system: AccountInfo<'a>,
 }
 
 impl<'a> InitializeAccounts<'a> {
@@ -40,7 +40,7 @@ impl<'a> InitializeAccounts<'a> {
             bangk: next_account_info(accounts_iter)?.clone(),
             config: next_account_info(accounts_iter)?.clone(),
             admin_sig: next_account_info(accounts_iter)?.clone(),
-            _system_program: next_account_info(accounts_iter)?.clone(),
+            program_system: next_account_info(accounts_iter)?.clone(),
         })
     }
 }
@@ -52,6 +52,7 @@ pub fn initialize(
 ) -> ProgramResult {
     let ctx = InitializeAccounts::new(accounts)?;
     msg!("Bangk: initializing ICO program");
+    check_system_program!(&ctx.program_system);
 
     if *ctx.bangk.key != INIT_KEY {
         msg!(
@@ -124,7 +125,7 @@ struct UpdateAdminMultisigAccounts<'a> {
     _admin2: AccountInfo<'a>,
     _admin3: AccountInfo<'a>,
     sig_admin: AccountInfo<'a>,
-    _program_system: AccountInfo<'a>,
+    program_system: AccountInfo<'a>,
 }
 
 impl<'a> UpdateAdminMultisigAccounts<'a> {
@@ -135,7 +136,7 @@ impl<'a> UpdateAdminMultisigAccounts<'a> {
             _admin2: next_account_info(accounts_iter)?.clone(),
             _admin3: next_account_info(accounts_iter)?.clone(),
             sig_admin: next_account_info(accounts_iter)?.clone(),
-            _program_system: next_account_info(accounts_iter)?.clone(),
+            program_system: next_account_info(accounts_iter)?.clone(),
         })
     }
 }
@@ -143,13 +144,14 @@ impl<'a> UpdateAdminMultisigAccounts<'a> {
 pub fn update_admin_multisig(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    args: UpdateAdminMultisigArgs,
+    args: &UpdateAdminMultisigArgs,
 ) -> ProgramResult {
     let ctx = UpdateAdminMultisigAccounts::new(accounts)?;
     msg!("Bangk: Updating Admin MultiSig");
 
     check_pda_owner!(program_id, ctx.sig_admin);
     check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
+    check_system_program!(&ctx.program_system);
 
     if [
         args.api_key,

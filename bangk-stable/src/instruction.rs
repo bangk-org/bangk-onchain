@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:54:24
+// Last modified: Sunday 22 December 2024 @ 18:55:18
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -17,8 +17,9 @@ use solana_program::{
     program_error::ProgramError,
     system_program,
 };
+use spl_associated_token_account::get_associated_token_address_with_program_id;
 
-use crate::ConfigurationPda;
+use crate::{ConfigurationPda, EXCHANGE_SEED, STABLE_MINT_SEED};
 
 /// Arguments for the program's initialization.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
@@ -50,6 +51,37 @@ pub struct UpdateAdminMultisigArgs {
     pub admin4: Pubkey,
 }
 
+/// Arguments needed to create a new Stable Coin mint
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
+pub struct CreateStableCoinArgs {
+    /// Name of the currency' stable coin to initialize
+    pub currency: String,
+    /// Symbol of the coin.
+    pub symbol: String,
+    /// `URI` of the coin.
+    pub uri: String,
+    /// Number of decimals to use.
+    pub decimals: u8,
+}
+
+/// Arguments needed to update the Name/URI metadata of a Stable Coin
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
+pub struct UpdateStableCoinMetadataArgs {
+    /// Symbol of the coin to update
+    pub symbol: String,
+    /// New name of the currency' stable coin to initialize
+    pub currency: Option<String>,
+    /// New `URI` of the coin.
+    pub uri: Option<String>,
+}
+
+/// Arguments needed to mint Stable Coins.
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
+pub struct StableCoinAmountArgs {
+    /// Number of coins to mint/transfer/burn
+    pub amount: f64,
+}
+
 /// Global payload for Bangk program.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, ShankInstruction)]
 #[rustfmt::skip]
@@ -69,6 +101,37 @@ pub enum BangkStableInstruction {
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
     #[account(4, name="system_program", desc="System Program")]
     UpdateAdminMultisig(UpdateAdminMultisigArgs),
+
+    /// Create a new Stable Coin
+    #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
+    #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
+    #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
+    #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(4, writable, name="mint", desc="Mint of the new stable coin")]
+    #[account(5, writable, name="pda_exchange", desc="Bangk wallet for the new coin used in exchange operations")]
+    #[account(6, name="system_program", desc="System Program")]
+    #[account(7, name="token_program", desc="SPL Token 2022 Program")]
+    CreateStableCoin(CreateStableCoinArgs),
+
+    /// Update the Name and/or URI metadata of a stable coin
+    #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
+    #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
+    #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
+    #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(4, writable, name="mint", desc="Mint of the stable coin")]
+    #[account(5, name="system_program", desc="System Program")]
+    #[account(6, name="token_program", desc="SPL Token 2022 Program")]
+    UpdateStableCoinMetadata(UpdateStableCoinMetadataArgs),
+
+    /// Mint Stable Coin to a given user
+    #[account(0, signer, writable, name="Bangk", desc="Signer and fee payer for the instruction")]
+    #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(2, writable, name="mint", desc="Mint of the stable coin")]
+    #[account(3, name="user", desc="User receiving the newly minted coins")]
+    #[account(4, name="ata", desc="User ATA where the coins are stored")]
+    #[account(5, name="system_program", desc="System Program")]
+    #[account(6, name="token_program", desc="SPL Token 2022 Program")]
+    MintStableCoins(StableCoinAmountArgs),
 }
 
 /// Initializes the ICO program's configuration.
@@ -156,6 +219,147 @@ pub fn update_admin_multisig(
                 admin3: *new_admin3,
                 admin4: *new_admin4,
             },
+        ))?,
+    })
+}
+
+/// Create the instruction for the creation of a new stable coin
+///
+/// # Parameters
+/// * `admin1` - Key of the payer and first signer of the instruction,
+/// * `admin2` - Key of the second signer of the instruction,
+/// * `admin3` - Key of the third signer of the instruction,
+/// * `currency` - Name of the Stable Coin to create,
+/// * `symbol` - Symbol of the Stable Coin to create,
+/// * `uri` - URI of the Stable Coin to create,
+/// * `decimals` - Number of decimals used by the Stable Coin.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn create_stable_coin(
+    admin1: &Pubkey,
+    admin2: &Pubkey,
+    admin3: &Pubkey,
+    currency: String,
+    symbol: String,
+    uri: String,
+    decimals: u8,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let mint = Pubkey::find_program_address(
+        &[STABLE_MINT_SEED.as_bytes(), symbol.as_bytes()],
+        &crate::ID,
+    )
+    .0;
+    let pda_exchange =
+        Pubkey::find_program_address(&[EXCHANGE_SEED.as_bytes(), &mint.to_bytes()], &crate::ID).0;
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin1, true),
+            AccountMeta::new_readonly(*admin2, true),
+            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(mint, false),
+            AccountMeta::new(pda_exchange, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::CreateStableCoin(
+            CreateStableCoinArgs {
+                currency,
+                symbol,
+                uri,
+                decimals,
+            },
+        ))?,
+    })
+}
+
+/// Create the instruction to update the metadata of a stable coin
+///
+/// # Parameters
+/// * `admin1` - Key of the payer and first signer of the instruction,
+/// * `admin2` - Key of the second signer of the instruction,
+/// * `admin3` - Key of the third signer of the instruction,
+/// * `currency` - New name of the Stable Coin,
+/// * `uri` - New URI of the Stable Coin,
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn update_stable_coin(
+    admin1: &Pubkey,
+    admin2: &Pubkey,
+    admin3: &Pubkey,
+    symbol: String,
+    currency: Option<String>,
+    uri: Option<String>,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let mint = Pubkey::find_program_address(
+        &[STABLE_MINT_SEED.as_bytes(), symbol.as_bytes()],
+        &crate::ID,
+    )
+    .0;
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin1, true),
+            AccountMeta::new_readonly(*admin2, true),
+            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(mint, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::UpdateStableCoinMetadata(
+            UpdateStableCoinMetadataArgs {
+                symbol,
+                currency,
+                uri,
+            },
+        ))?,
+    })
+}
+
+/// Mint some amount of Stable Coin for a given user.
+///
+/// # Parameters
+/// * `admin` - Bangk admin authorizing the operation (should always be the API),
+/// * `user` - User receiving the stable coins,
+/// * `currency` - Symbol of the Stable Coin,
+/// * `amount` - Amount received by the user.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn mint(
+    admin: &Pubkey,
+    user: &Pubkey,
+    currency: &str,
+    amount: f64,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let mint = Pubkey::find_program_address(
+        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
+        &crate::ID,
+    )
+    .0;
+    let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
+
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(mint, false),
+            AccountMeta::new_readonly(*user, false),
+            AccountMeta::new(ata, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::MintStableCoins(
+            StableCoinAmountArgs { amount },
         ))?,
     })
 }

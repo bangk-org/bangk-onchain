@@ -3,7 +3,7 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Thursday 25 July 2024 @ 20:48:08
+// Last modified: Sunday 22 December 2024 @ 18:55:18
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -65,7 +65,7 @@ macro_rules! check_pda_owner {
 /// If the account's key does not match
 #[macro_export]
 macro_rules! check_system_program {
-    ($id:ident) => {
+    ($id:expr) => {
         if *$id.key != solana_program::system_program::id() {
             return Err(bangk_onchain_common::Error::InvalidProgramId.into());
         }
@@ -81,7 +81,7 @@ macro_rules! check_system_program {
 /// If the account's key does not match
 #[macro_export]
 macro_rules! check_spl_program {
-    ($id:ident) => {
+    ($id:expr) => {
         if *$id.key != spl_token_2022::id() {
             return Err(bangk_onchain_common::Error::InvalidProgramId.into());
         }
@@ -97,7 +97,7 @@ macro_rules! check_spl_program {
 /// If the account's key does not match
 #[macro_export]
 macro_rules! check_ata_program {
-    ($id:ident) => {
+    ($id:expr) => {
         if *$id.key != spl_associated_token_account::id() {
             return Err(bangk_onchain_common::Error::InvalidProgramId.into());
         }
