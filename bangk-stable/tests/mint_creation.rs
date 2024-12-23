@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:55:18
+// Last modified: Monday 23 December 2024 @ 20:24:40
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -25,7 +25,10 @@ use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
     Error as BangkError,
 };
-use bangk_stable::{create_stable_coin, mint, update_stable_coin, EXCHANGE_SEED, STABLE_MINT_SEED};
+use bangk_stable::{
+    create_stable_coin, update_stable_coin, EXCHANGE_WALLET_SEED, STABLE_MINT_SEED,
+};
+use common::{mint_coins, mint_exchange_coins};
 use solana_program_test::tokio;
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
 use spl_associated_token_account::get_associated_token_address_with_program_id;
@@ -46,7 +49,7 @@ async fn default() -> Result<()> {
     )
     .0;
     let pda_exchange = Pubkey::find_program_address(
-        &[EXCHANGE_SEED.as_bytes(), &mint_address.to_bytes()],
+        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_address.to_bytes()],
         &bangk_stable::ID,
     )
     .0;
@@ -76,7 +79,7 @@ async fn default() -> Result<()> {
     assert_eq!(pda.owner, admin_pda);
     assert_eq!(pda.delegate, None.into());
     let tokens = env.get_token_amount(&pda_exchange).await;
-    assert!(tokens.is_some_and(|toks| toks == 0));
+    assert_eq!(tokens, Some(0));
 
     Ok(())
 }
@@ -193,12 +196,9 @@ async fn update_metadata_nodata() -> Result<()> {
 #[tokio::test]
 async fn mint_operation() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
-    let admin1 = env.wallets["Admin 1"].pubkey();
     let user = env.add_wallet("User 1").await;
-    let instruction = mint(&admin1, &user, SYMBOL, AMOUNT)?;
-    // println!("Instruction: {instruction:#?}");
-    env.execute_transaction(&[instruction], &["Admin 1"])
-        .await?;
+
+    mint_coins(&mut env, SYMBOL, &user, AMOUNT).await?;
 
     let mint_address = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), SYMBOL.as_bytes()],
@@ -220,16 +220,10 @@ async fn mint_operation() -> Result<()> {
 #[tokio::test]
 async fn mint_operation_existing_ata() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
-    let admin1 = env.wallets["Admin 1"].pubkey();
     let user = env.add_wallet("User 2").await;
-    let instruction1 = mint(&admin1, &user, SYMBOL, AMOUNT)?;
-    // println!("Instruction: {instruction:#?}");
-    env.execute_transaction(&[instruction1], &["Admin 1"])
-        .await?;
-    // Double, this time the ATA exists
-    let instruction2 = mint(&admin1, &user, SYMBOL, AMOUNT)?;
-    env.execute_transaction(&[instruction2], &["Admin 1"])
-        .await?;
+
+    mint_coins(&mut env, SYMBOL, &user, AMOUNT).await?;
+    mint_coins(&mut env, SYMBOL, &user, AMOUNT).await?;
 
     let mint_address = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), SYMBOL.as_bytes()],
@@ -244,6 +238,33 @@ async fn mint_operation_existing_ata() -> Result<()> {
         .ok_or("could not retrieve the token amount")?;
     let expected = AMOUNT as u64 * 2 * 10_u64.pow(u32::from(DECIMALS));
     assert_eq!(expected, amount);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn mint_to_exchange() -> Result<()> {
+    let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
+
+    let mint_address = Pubkey::find_program_address(
+        &[STABLE_MINT_SEED.as_bytes(), SYMBOL.as_bytes()],
+        &bangk_stable::ID,
+    )
+    .0;
+    let pda_exchange = Pubkey::find_program_address(
+        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_address.to_bytes()],
+        &bangk_stable::ID,
+    )
+    .0;
+    println!("{mint_address}");
+    mint_exchange_coins(&mut env, SYMBOL, AMOUNT).await?;
+
+    // Chechking exchange wallets
+    let pda = env.get_account_state(&pda_exchange).await;
+    assert_eq!(pda.mint, mint_address);
+    let tokens = env.get_token_amount(&pda_exchange).await;
+    let expected = AMOUNT as u64 * 10_u64.pow(u32::from(DECIMALS));
+    assert_eq!(tokens, Some(expected));
 
     Ok(())
 }

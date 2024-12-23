@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:55:18
+// Last modified: Monday 23 December 2024 @ 19:05:44
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -19,7 +19,9 @@ use crate::instruction::BangkStableInstruction;
 use super::{
     admin::{initialize, update_admin_multisig},
     mint_creation,
-    mints::{mint_coin, update_metadata},
+    mints::{mint_coin, mint_exchange_coin, update_metadata},
+    transfers::{exchange, transfer},
+    update_exchange_rates,
 };
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));
@@ -48,5 +50,13 @@ pub fn process_instruction(
             update_metadata(program_id, accounts, &args)
         }
         BangkStableInstruction::MintStableCoins(args) => mint_coin(program_id, accounts, args),
+        BangkStableInstruction::MintExchangeStableCoins(args) => {
+            mint_exchange_coin(program_id, accounts, args)
+        }
+        BangkStableInstruction::UpdateExchangeRates(args) => {
+            update_exchange_rates(program_id, accounts, &args)
+        }
+        BangkStableInstruction::Transfer(args) => transfer(program_id, accounts, args),
+        BangkStableInstruction::Exchange(args) => exchange(program_id, accounts, &args),
     }
 }

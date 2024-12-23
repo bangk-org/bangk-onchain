@@ -3,11 +3,11 @@ ignore = [
   "RUSTSEC-2022-0093",  # dependency of Solana-sdk with a fixed version
   "RUSTSEC-2024-0370",  # un-maintained proc-macro-error crate, nothing I can do about it
   "RUSTSEC-2024-0344",  # Solana dependency
+  "RUSTSEC-2024-0375",  # un-maintained atty crate, nothing I can do about it
+  "RUSTSEC-2024-0388",  # un-maintained derivative crate, nothing I can do about it
 
   # Warnings
-  "RUSTSEC-2021-0139",  #  ansi_term, solana dependency
   "RUSTSEC-2021-0145",  #  Atty, solana dependency
-  "RUSTSEC-2023-0033",  #  Borsh, solana dependency
 ]
 
 [licenses]
@@ -23,14 +23,12 @@ allow = [
   "MIT",
   "MPL-2.0",
   "0BSD",
+  "Unicode-3.0",
   "Unlicense",
   "Zlib",
 ]
 
 exceptions = [
-  { allow = [
-    "Unicode-DFS-2016",
-  ], name = "unicode-ident" },
   { allow = [
     "OpenSSL",
   ], name = "ring" },

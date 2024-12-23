@@ -3,7 +3,7 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:55:18
+// Last modified: Monday 23 December 2024 @ 17:51:23
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -16,8 +16,11 @@ use spl_token_2022::{extension::StateWithExtensions, state::Mint};
 ///
 /// # Parameters
 /// * `mint` - The account of the mint
+///
+/// # Errors
+/// If the number of decimals could not be retrieved (the given account is not a mint for example)
 #[inline]
-fn get_decimals(mint: &AccountInfo) -> Result<u8, ProgramError> {
+pub fn get_decimals(mint: &AccountInfo) -> Result<u8, ProgramError> {
     get_mint_base_state(mint).map(|state| state.decimals)
 }
 

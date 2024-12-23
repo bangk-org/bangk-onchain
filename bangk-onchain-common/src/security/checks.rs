@@ -3,7 +3,7 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:55:18
+// Last modified: Monday 23 December 2024 @ 18:17:46
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -53,6 +53,45 @@ macro_rules! check_pda_owner {
     ($program_id:ident, $pda:expr $(, $tail:expr)*) => {
         check_pda_owner!($program_id, $pda);
         check_pda_owner!($program_id $(, $tail)*);
+    }
+}
+
+/// Check that the wallet owns the ATA
+#[macro_export]
+macro_rules! check_ata_owner {
+    ($wallet:expr, $ata:expr $(,)?) => {
+        if $ata.lamports() > 0 {
+            let ata_owner = &spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(*$ata.try_borrow_data()?)?.base.owner;
+            if ata_owner != $wallet.key {
+                $crate::debug!("{} has owner {} and not {}", stringify!($ata), ata_owner, $wallet.key);
+                return Err(bangk_onchain_common::Error::InvalidOwner.into());
+            }
+        }
+    };
+    ($wallet:ident, $ata:expr $(, $tail:expr)*) => {
+        check_pda_owner!($wallet, $ata);
+        check_pda_owner!($wallet $(, $tail)*);
+    }
+}
+
+/// Checks that accounts are associated to the right mint.
+///
+/// # Parameters
+/// * `mint` - Mint supposedly associated to the token accounts.
+/// * `accounts` - Accounts to check.
+#[macro_export]
+macro_rules! check_mint_ata {
+    ($mint:expr, $ata:expr) => {
+        let associated_mint = spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(*$ata.try_borrow_data()?)?
+            .base
+            .mint;
+        if *$mint.key != associated_mint {
+            return Err(bangk_onchain_common::Error::MismatchATAMint.into());
+        }
+    };
+    ($mint:expr, $ata:expr, $($tail:expr),*) => {
+        check_mint_ata!($mint, $ata);
+        check_mint_ata!($mint, $($tail)*);
     }
 }
 

@@ -3,7 +3,7 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:55:18
+// Last modified: Monday 23 December 2024 @ 19:50:13
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -42,7 +42,7 @@ use spl_token_metadata_interface::{
 
 use crate::{
     get_token_amount, CreateStableCoinArgs, StableCoinAmountArgs, UpdateStableCoinMetadataArgs,
-    EXCHANGE_SEED, STABLE_MINT_SEED,
+    EXCHANGE_WALLET_SEED, STABLE_MINT_SEED,
 };
 
 struct MintCreationAccounts<'a> {
@@ -199,8 +199,10 @@ pub fn mint_creation(
 
     debug!("Initializing Bangk Exchange wallet");
 
-    let (pda_exchange, pda_bump) =
-        Pubkey::find_program_address(&[EXCHANGE_SEED.as_bytes(), &mint.to_bytes()], &crate::ID);
+    let (pda_exchange, pda_bump) = Pubkey::find_program_address(
+        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint.to_bytes()],
+        &crate::ID,
+    );
     if *ctx.pda_exchange.key != pda_exchange {
         msg!("invalid wallet address for exchange wallet");
         return Err(Error::InvalidPdaAddress.into());
@@ -228,7 +230,11 @@ pub fn mint_creation(
             &spl_token_2022::id(),
         ),
         &[ctx.admin1.clone(), ctx.pda_exchange.clone()],
-        &[&[EXCHANGE_SEED.as_bytes(), &mint.to_bytes(), &[pda_bump]]],
+        &[&[
+            EXCHANGE_WALLET_SEED.as_bytes(),
+            &mint.to_bytes(),
+            &[pda_bump],
+        ]],
     )?;
 
     debug!("initializing PDA account");
@@ -396,8 +402,8 @@ pub fn mint_coin(
         return Err(Error::InvalidAta.into());
     }
 
-    if args.amount <= 0.0_f64 {
-        msg!("Cannot mint a negative or null amount of coins");
+    if args.amount < 0.0_f64 {
+        msg!("Cannot mint a negative or amount of coins");
         return Err(Error::InvalidAmount.into());
     }
 
@@ -425,6 +431,10 @@ pub fn mint_coin(
     }
 
     // Compute the amount of tokens to mint
+    if args.amount == 0.0_f64 {
+        return Ok(());
+    }
+
     let amount = get_token_amount(&ctx.mint, args.amount)?;
     debug!("number of tokens to mint: {amount}");
 
@@ -439,6 +449,93 @@ pub fn mint_coin(
             amount,
         )?,
         &[ctx.mint.clone(), ctx.ata.clone(), ctx.sig_admin.clone()],
+        &[admin_seeds.as_slice()],
+    )
+}
+
+struct MintExchangeCoinAccounts<'a> {
+    _admin1: AccountInfo<'a>,
+    _admin2: AccountInfo<'a>,
+    _admin3: AccountInfo<'a>,
+    sig_admin: AccountInfo<'a>,
+    mint: AccountInfo<'a>,
+    exchange_pda: AccountInfo<'a>,
+    program_system: AccountInfo<'a>,
+    program_token: AccountInfo<'a>,
+}
+
+impl<'a> MintExchangeCoinAccounts<'a> {
+    fn new(accounts: &[AccountInfo<'a>]) -> Result<Self, ProgramError> {
+        let accounts_iter = &mut accounts.iter();
+        Ok(Self {
+            _admin1: next_account_info(accounts_iter)?.clone(),
+            _admin2: next_account_info(accounts_iter)?.clone(),
+            _admin3: next_account_info(accounts_iter)?.clone(),
+            sig_admin: next_account_info(accounts_iter)?.clone(),
+            mint: next_account_info(accounts_iter)?.clone(),
+            exchange_pda: next_account_info(accounts_iter)?.clone(),
+            program_system: next_account_info(accounts_iter)?.clone(),
+            program_token: next_account_info(accounts_iter)?.clone(),
+        })
+    }
+}
+#[allow(clippy::too_many_lines)]
+pub fn mint_exchange_coin(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    args: StableCoinAmountArgs,
+) -> ProgramResult {
+    let ctx = MintExchangeCoinAccounts::new(accounts)?;
+    msg!("Bangk: minting {} to exchange", ctx.mint.key);
+
+    if ctx.mint.lamports() == 0 {
+        msg!("{} does not exist", ctx.mint.key);
+        return Err(Error::InvalidPdaAddress.into());
+    }
+
+    MultiSigPda::check_address(MultiSigType::Admin, &crate::ID, &ctx.sig_admin)?;
+    let admin_sig = MultiSigPda::from_account(&ctx.sig_admin)?;
+    let admin_seeds = admin_sig.seeds();
+    let admin_seeds = admin_seeds.iter().map(Vec::as_slice).collect::<Vec<_>>();
+
+    check_pda_owner!(program_id, ctx.sig_admin);
+    check_signers!(accounts, &ctx.sig_admin, OperationSecurityLevel::Critical);
+    check_system_program!(&ctx.program_system);
+    check_spl_program!(&ctx.program_token);
+
+    let (pda_exchange, _pda_bump) = Pubkey::find_program_address(
+        &[EXCHANGE_WALLET_SEED.as_bytes(), &ctx.mint.key.to_bytes()],
+        &crate::ID,
+    );
+    if *ctx.exchange_pda.key != pda_exchange {
+        msg!("invalid wallet address for exchange wallet");
+        return Err(Error::InvalidPdaAddress.into());
+    }
+
+    if args.amount <= 0.0_f64 {
+        msg!("Cannot mint a negative or null amount of coins");
+        return Err(Error::InvalidAmount.into());
+    }
+
+    // Compute the amount of tokens to mint
+    let amount = get_token_amount(&ctx.mint, args.amount)?;
+    debug!("number of tokens to mint: {amount}");
+
+    // Mint the tokens
+    invoke_signed(
+        &mint_to(
+            &spl_token_2022::id(),
+            ctx.mint.key,
+            ctx.exchange_pda.key,
+            ctx.sig_admin.key,
+            &[],
+            amount,
+        )?,
+        &[
+            ctx.mint.clone(),
+            ctx.exchange_pda.clone(),
+            ctx.sig_admin.clone(),
+        ],
         &[admin_seeds.as_slice()],
     )
 }
