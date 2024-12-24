@@ -3,16 +3,15 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 17:16:32
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
 
 mod admin;
+mod coins;
 mod main;
-mod mints;
+mod supply;
 mod transfers;
 
 pub use main::{process_instruction, INIT_KEY};
-pub use mints::mint_creation;
-pub use transfers::update_exchange_rates;

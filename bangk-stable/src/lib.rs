@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 17:46:39
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -26,7 +26,7 @@ pub use instruction::*;
 /// Handles the dispatch of the processing operations (only used in tests).
 pub use processor::{process_instruction, INIT_KEY};
 /// Support functions
-pub use support::{get_decimals, get_token_amount};
+pub use support::{get_decimals, compute_token_amount};
 
 // Set the program's ID.
 solana_program::declare_id!("BKPrg5rXBCXMEJPnL2K8DaFEcua1e1SkeLUGqSQhkj6U");

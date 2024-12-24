@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 19:30:04
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -21,10 +21,8 @@ type Result<T> = result::Result<T, Error>;
 use std::{error, result};
 
 use bangk_onchain_common::Error as BangkError;
-use bangk_stable::{transfer, STABLE_MINT_SEED};
-use common::{mint_coins, transfer_coins};
-use solana_sdk::pubkey::Pubkey;
-use spl_associated_token_account::get_associated_token_address_with_program_id;
+use bangk_stable::transfer;
+use common::{get_ata, mint_coins, transfer_coins};
 pub mod common;
 
 const CURRENCY: &str = "Euro BANGK";
@@ -33,24 +31,19 @@ const URI: &str = "https://api.bangk.app/token-eub";
 const DECIMALS: u8 = 2;
 const AMOUNT: f64 = 1000.;
 
+const USER_SOURCE: &str = "User 1";
+const USER_TARGET: &str = "User 2";
+
 #[tokio::test]
 async fn default() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
-    let source = env.add_wallet("User 1").await;
-    let target = env.add_wallet("User 2").await;
 
-    mint_coins(&mut env, SYMBOL, &source, AMOUNT).await?;
-    mint_coins(&mut env, SYMBOL, &target, AMOUNT).await?;
+    mint_coins(&mut env, SYMBOL, USER_SOURCE, AMOUNT).await?;
+    mint_coins(&mut env, SYMBOL, USER_TARGET, AMOUNT).await?;
 
-    let mint_address = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), SYMBOL.as_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
-    let source_ata =
-        get_associated_token_address_with_program_id(&source, &mint_address, &spl_token_2022::id());
-    let target_ata =
-        get_associated_token_address_with_program_id(&target, &mint_address, &spl_token_2022::id());
+    let source_ata = get_ata(&env, USER_SOURCE, SYMBOL);
+    let target_ata = get_ata(&env, USER_TARGET, SYMBOL);
+
     let expected = AMOUNT as u64 * 10_u64.pow(u32::from(DECIMALS));
     assert_eq!(
         env.get_token_amount(&source_ata)

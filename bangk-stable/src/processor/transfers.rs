@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 20:01:58
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -26,7 +26,7 @@ use solana_program::{
 use spl_token_2022::instruction::transfer_checked;
 
 use crate::{
-    get_decimals, get_token_amount, ConfigurationPda, ExchangeArgs, StableCoinAmountArgs,
+    compute_token_amount, get_decimals, CoinsAmountArgs, ConfigurationPda, ExchangeArgs,
     UpdateExchangeRatesArgs,
 };
 
@@ -101,7 +101,7 @@ impl<'a> TransferAccounts<'a> {
 pub fn transfer(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    args: StableCoinAmountArgs,
+    args: CoinsAmountArgs,
 ) -> ProgramResult {
     let ctx = TransferAccounts::new(accounts)?;
     msg!("Bangk: Transferring Stable Coins");
@@ -117,7 +117,7 @@ pub fn transfer(
         return Err(Error::InvalidAmount.into());
     }
 
-    let amount = get_token_amount(&ctx.mint, args.amount)?;
+    let amount = compute_token_amount(&ctx.mint, args.amount)?;
     invoke(
         &transfer_checked(
             &spl_token_2022::id(),
@@ -206,7 +206,7 @@ pub fn exchange(
     ConfigurationPda::check_address(program_id, &ctx.config)?;
     let config = ConfigurationPda::from_account(&ctx.config)?;
     let rate = config.get_exchange_rate(&args.source, &args.target)?;
-    let amount = get_token_amount(&ctx.target_mint, args.amount)?;
+    let amount = compute_token_amount(&ctx.target_mint, args.amount)?;
     let exchanged_amount = 1.0_f64 / rate * args.amount;
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]

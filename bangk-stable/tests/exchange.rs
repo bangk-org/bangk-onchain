@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 20:23:55
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -20,12 +20,11 @@ type Result<T> = result::Result<T, Error>;
 
 use std::{collections::HashMap, error, result};
 
-use bangk_stable::{
-    update_exchange_rates, ConfigurationPda, EXCHANGE_WALLET_SEED, STABLE_MINT_SEED,
+use bangk_stable::{update_exchange_rates, ConfigurationPda};
+use common::{
+    create_coin, exchange_coins, get_ata, get_exchange, mint_coins, mint_exchange_coins, to_tokens,
 };
-use common::{create_coin, exchange_coins, mint_coins, mint_exchange_coins, to_tokens};
-use solana_sdk::{pubkey::Pubkey, signer::Signer as _};
-use spl_associated_token_account::get_associated_token_address_with_program_id;
+use solana_sdk::signer::Signer as _;
 use tests_utilities::onchain::Environment;
 pub mod common;
 
@@ -42,6 +41,9 @@ const EXCHANGE_SOURCE_EUB: f64 = 150.0;
 const EXCHANGE_SOURCE_AMOUNT: f64 = 1_000_000.0;
 const EXCHANGE_TARGET_EUB: f64 = 1.1;
 const EXCHANGE_TARGET_AMOUNT: f64 = 100_000.0;
+
+const USER_SOURCE: &str = "User 1";
+const USER_TARGET: &str = "User 2";
 
 async fn setup() -> Result<Environment> {
     let mut env = common::init_default().await?;
@@ -129,27 +131,8 @@ async fn set_exchange_rates() -> Result<()> {
 async fn check_setup() -> Result<()> {
     let mut env = setup().await?;
 
-    let mint_source = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), SOURCE_SYMBOL.as_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
-    let exchange_source = Pubkey::find_program_address(
-        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_source.to_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
-
-    let mint_target = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), TARGET_SYMBOL.as_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
-    let exchange_target = Pubkey::find_program_address(
-        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_target.to_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
+    let exchange_source = get_exchange(SOURCE_SYMBOL);
+    let exchange_target = get_exchange(TARGET_SYMBOL);
 
     let expected_source = EXCHANGE_SOURCE_AMOUNT as u64 * 10_u64.pow(u32::from(SOURCE_DECIMALS));
     let expected_target = EXCHANGE_TARGET_AMOUNT as u64 * 10_u64.pow(u32::from(TARGET_DECIMALS));
@@ -164,49 +147,25 @@ async fn check_setup() -> Result<()> {
 #[tokio::test]
 async fn exchange() -> Result<()> {
     let mut env = setup().await?;
-    let source = env.add_wallet("User 1").await;
-    let target = env.add_wallet("User 2").await;
-
     let rate = 1.0_f64 / EXCHANGE_SOURCE_EUB * EXCHANGE_TARGET_EUB;
     println!("rate is {rate}");
 
     let expected_cost = AMOUNT / rate;
 
-    mint_coins(&mut env, SOURCE_SYMBOL, &source, expected_cost * 2.0).await?;
-    mint_coins(&mut env, TARGET_SYMBOL, &target, 0.0).await?;
+    mint_coins(&mut env, SOURCE_SYMBOL, USER_SOURCE, expected_cost * 2.0).await?;
+    mint_coins(&mut env, TARGET_SYMBOL, USER_TARGET, 0.0).await?;
     exchange_coins(
         &mut env,
         SOURCE_SYMBOL,
         TARGET_SYMBOL,
-        "User 1",
-        "User 2",
+        USER_SOURCE,
+        USER_TARGET,
         AMOUNT,
     )
     .await?;
 
-    let mint_source = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), SOURCE_SYMBOL.as_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
-
-    let mint_target = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), TARGET_SYMBOL.as_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
-
-    println!("checking that the exchanges have the expected amount of tokens");
-    let exchange_source = Pubkey::find_program_address(
-        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_source.to_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
-    let exchange_target = Pubkey::find_program_address(
-        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_target.to_bytes()],
-        &bangk_stable::ID,
-    )
-    .0;
+    let exchange_source = get_exchange(SOURCE_SYMBOL);
+    let exchange_target = get_exchange(TARGET_SYMBOL);
 
     assert_eq!(
         env.get_token_amount(&exchange_target).await,
@@ -220,10 +179,8 @@ async fn exchange() -> Result<()> {
         ))
     );
 
-    let source_ata =
-        get_associated_token_address_with_program_id(&source, &mint_source, &spl_token_2022::id());
-    let target_ata =
-        get_associated_token_address_with_program_id(&target, &mint_target, &spl_token_2022::id());
+    let source_ata = get_ata(&env, USER_SOURCE, SOURCE_SYMBOL);
+    let target_ata = get_ata(&env, USER_TARGET, TARGET_SYMBOL);
 
     println!("Checking that the users have the expected amount of tokens");
     assert_eq!(

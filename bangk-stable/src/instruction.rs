@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 20:00:35
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -56,7 +56,7 @@ pub struct UpdateAdminMultisigArgs {
 
 /// Arguments needed to create a new Stable Coin mint
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
-pub struct CreateStableCoinArgs {
+pub struct CreateCoinArgs {
     /// Name of the currency' stable coin to initialize
     pub currency: String,
     /// Symbol of the coin.
@@ -69,9 +69,7 @@ pub struct CreateStableCoinArgs {
 
 /// Arguments needed to update the Name/URI metadata of a Stable Coin
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
-pub struct UpdateStableCoinMetadataArgs {
-    /// Symbol of the coin to update
-    pub symbol: String,
+pub struct UpdateCoinMetadataArgs {
     /// New name of the currency' stable coin to initialize
     pub currency: Option<String>,
     /// New `URI` of the coin.
@@ -80,7 +78,7 @@ pub struct UpdateStableCoinMetadataArgs {
 
 /// Arguments needed to mint Stable Coins.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
-pub struct StableCoinAmountArgs {
+pub struct CoinsAmountArgs {
     /// Number of coins to mint/transfer/burn
     pub amount: f64,
 }
@@ -100,6 +98,15 @@ pub struct ExchangeArgs {
     /// Target currency
     pub target: String,
     /// Number of coins to be received
+    pub amount: f64,
+}
+
+/// Arguments needed to burn stable coins
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
+pub struct BurnArgs {
+    /// Close the account if there are no tokens left
+    pub close_empty: bool,
+    /// Amount to burn
     pub amount: f64,
 }
 
@@ -131,7 +138,7 @@ pub enum BangkStableInstruction {
     #[account(5, writable, name="pda_exchange", desc="Bangk wallet for the new coin used in exchange operations")]
     #[account(6, name="system_program", desc="System Program")]
     #[account(7, name="token_program", desc="SPL Token 2022 Program")]
-    CreateStableCoin(CreateStableCoinArgs),
+    CreateCoin(CreateCoinArgs),
 
     /// Update the Name and/or URI metadata of a stable coin
     #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
@@ -141,17 +148,18 @@ pub enum BangkStableInstruction {
     #[account(4, writable, name="mint", desc="Mint of the stable coin")]
     #[account(5, name="system_program", desc="System Program")]
     #[account(6, name="token_program", desc="SPL Token 2022 Program")]
-    UpdateStableCoinMetadata(UpdateStableCoinMetadataArgs),
+    UpdateCoinMetadata(UpdateCoinMetadataArgs),
 
     /// Mint Stable Coin to a given user
     #[account(0, signer, writable, name="Bangk", desc="Signer and fee payer for the instruction")]
     #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
     #[account(2, writable, name="mint", desc="Mint of the stable coin")]
     #[account(3, name="user", desc="User receiving the newly minted coins")]
-    #[account(4, name="ata", desc="User ATA where the coins are stored")]
+    #[account(4, writable, name="ata", desc="User ATA where the coins are stored")]
     #[account(5, name="system_program", desc="System Program")]
     #[account(6, name="token_program", desc="SPL Token 2022 Program")]
-    MintStableCoins(StableCoinAmountArgs),
+    #[account(7, name="ata_program", desc="Associated Token Account Program")]
+    Mint(CoinsAmountArgs),
 
     /// Mint Stable Coin to the Bangk Exchange PDA
     #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
@@ -159,10 +167,21 @@ pub enum BangkStableInstruction {
     #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
     #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
     #[account(4, writable, name="mint", desc="Mint of the stable coin")]
-    #[account(5, name="exchange_pda", desc="Bangk wallet used in exchange operations")]
+    #[account(5, writable, name="exchange_pda", desc="Bangk wallet used in exchange operations")]
     #[account(6, name="system_program", desc="System Program")]
     #[account(7, name="token_program", desc="SPL Token 2022 Program")]
-    MintExchangeStableCoins(StableCoinAmountArgs),
+    MintExchange(CoinsAmountArgs),
+
+    /// Burn Stable Coin from a given user
+    #[account(0, signer, writable, name="signer", desc="Signer and fee payer for the instruction")]
+    #[account(1, writable, name="destination", desc="The account to which a closing account will send its SOL")]
+    #[account(2, writable, name="mint", desc="Mint of the stable coin")]
+    #[account(3, name="user", desc="User receiving the newly minted coins")]
+    #[account(4, writable, name="ata", desc="User ATA where the coins are stored")]
+    #[account(5, name="system_program", desc="System Program")]
+    #[account(6, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(7, name="ata_program", desc="Associated Token Account Program")]
+    Burn(BurnArgs),
 
     /// Set or update currency exchange rates.
     #[account(0, signer, writable, name="bangk", desc="Bangk signing account")]
@@ -178,7 +197,7 @@ pub enum BangkStableInstruction {
     #[account(3, writable, name="target_ata", desc="Target ATA receiving the transfered tokkens")]
     #[account(4, name="system_program", desc="System Program")]
     #[account(5, name="token_program", desc="SPL Token 2022 Program")]
-    Transfer(StableCoinAmountArgs),
+    Transfer(CoinsAmountArgs),
 
     /// Exchange stable coins from one currency to another
     #[account(0, signer, writable, name="signer", desc="Wallet owning the tokens to be transfered")]
@@ -329,14 +348,12 @@ pub fn create_stable_coin(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::CreateStableCoin(
-            CreateStableCoinArgs {
-                currency,
-                symbol,
-                uri,
-                decimals,
-            },
-        ))?,
+        data: borsh::to_vec(&BangkStableInstruction::CreateCoin(CreateCoinArgs {
+            currency,
+            symbol,
+            uri,
+            decimals,
+        }))?,
     })
 }
 
@@ -346,6 +363,7 @@ pub fn create_stable_coin(
 /// * `admin1` - Key of the payer and first signer of the instruction,
 /// * `admin2` - Key of the second signer of the instruction,
 /// * `admin3` - Key of the third signer of the instruction,
+/// * `mint` - The mint of the currency to update,
 /// * `currency` - New name of the Stable Coin,
 /// * `uri` - New URI of the Stable Coin,
 ///
@@ -355,16 +373,11 @@ pub fn update_stable_coin(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
-    symbol: String,
+    mint: &Pubkey,
     currency: Option<String>,
     uri: Option<String>,
 ) -> Result<Instruction, ProgramError> {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let mint = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), symbol.as_bytes()],
-        &crate::ID,
-    )
-    .0;
     Ok(Instruction {
         program_id: crate::ID,
         accounts: vec![
@@ -372,16 +385,12 @@ pub fn update_stable_coin(
             AccountMeta::new_readonly(*admin2, true),
             AccountMeta::new_readonly(*admin3, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new(mint, false),
+            AccountMeta::new(*mint, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::UpdateStableCoinMetadata(
-            UpdateStableCoinMetadataArgs {
-                symbol,
-                currency,
-                uri,
-            },
+        data: borsh::to_vec(&BangkStableInstruction::UpdateCoinMetadata(
+            UpdateCoinMetadataArgs { currency, uri },
         ))?,
     })
 }
@@ -422,9 +431,50 @@ pub fn mint(
             AccountMeta::new_readonly(spl_token_2022::ID, false),
             AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::MintStableCoins(
-            StableCoinAmountArgs { amount },
-        ))?,
+        data: borsh::to_vec(&BangkStableInstruction::Mint(CoinsAmountArgs { amount }))?,
+    })
+}
+
+/// Burn some amount of Stable Coin from a given user.
+///
+/// # Parameters
+/// * `user` - User burning the stable coins,
+/// * `currency` - Symbol of the Stable Coin,
+/// * `amount` - Amount received by the user,
+/// * `destination` - The account receiving the SOLs of a closing account,
+/// * `close_empty` - If true, an empty account will be deleted.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn burn(
+    user: &Pubkey,
+    currency: &str,
+    amount: f64,
+    destination: &Pubkey,
+    close_empty: bool,
+) -> Result<Instruction, ProgramError> {
+    let mint = Pubkey::find_program_address(
+        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
+        &crate::ID,
+    )
+    .0;
+    let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
+
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*user, true),
+            AccountMeta::new(*destination, false),
+            AccountMeta::new(mint, false),
+            AccountMeta::new(ata, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::Burn(BurnArgs {
+            close_empty,
+            amount,
+        }))?,
     })
 }
 
@@ -470,9 +520,9 @@ pub fn mint_to_exchange(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::MintExchangeStableCoins(
-            StableCoinAmountArgs { amount },
-        ))?,
+        data: borsh::to_vec(&BangkStableInstruction::MintExchange(CoinsAmountArgs {
+            amount,
+        }))?,
     })
 }
 
@@ -512,7 +562,7 @@ pub fn transfer(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::Transfer(StableCoinAmountArgs {
+        data: borsh::to_vec(&BangkStableInstruction::Transfer(CoinsAmountArgs {
             amount,
         }))?,
     })

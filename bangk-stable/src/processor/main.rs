@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 19:05:44
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -18,10 +18,9 @@ use crate::instruction::BangkStableInstruction;
 
 use super::{
     admin::{initialize, update_admin_multisig},
-    mint_creation,
-    mints::{mint_coin, mint_exchange_coin, update_metadata},
-    transfers::{exchange, transfer},
-    update_exchange_rates,
+    coins::{mint_creation, update_metadata},
+    supply::{burn_coin, mint_coin, mint_exchange_coin},
+    transfers::{exchange, transfer, update_exchange_rates},
 };
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));
@@ -43,14 +42,12 @@ pub fn process_instruction(
         BangkStableInstruction::UpdateAdminMultisig(args) => {
             update_admin_multisig(program_id, accounts, &args)
         }
-        BangkStableInstruction::CreateStableCoin(args) => {
-            mint_creation(program_id, accounts, &args)
-        }
-        BangkStableInstruction::UpdateStableCoinMetadata(args) => {
+        BangkStableInstruction::CreateCoin(args) => mint_creation(program_id, accounts, &args),
+        BangkStableInstruction::UpdateCoinMetadata(args) => {
             update_metadata(program_id, accounts, &args)
         }
-        BangkStableInstruction::MintStableCoins(args) => mint_coin(program_id, accounts, args),
-        BangkStableInstruction::MintExchangeStableCoins(args) => {
+        BangkStableInstruction::Mint(args) => mint_coin(program_id, accounts, args),
+        BangkStableInstruction::MintExchange(args) => {
             mint_exchange_coin(program_id, accounts, args)
         }
         BangkStableInstruction::UpdateExchangeRates(args) => {
@@ -58,5 +55,6 @@ pub fn process_instruction(
         }
         BangkStableInstruction::Transfer(args) => transfer(program_id, accounts, args),
         BangkStableInstruction::Exchange(args) => exchange(program_id, accounts, &args),
+        BangkStableInstruction::Burn(args) => burn_coin(program_id, accounts, args),
     }
 }

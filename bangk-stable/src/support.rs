@@ -3,14 +3,17 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 17:51:23
+// Last modified: Tuesday 24 December 2024 @ 17:23:10
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
 
 use bangk_onchain_common::Error;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError};
-use spl_token_2022::{extension::StateWithExtensions, state::Mint};
+use spl_token_2022::{
+    extension::StateWithExtensions,
+    state::{Account, Mint},
+};
 
 /// Get the number of decimals used by a given stable coin
 ///
@@ -38,6 +41,24 @@ pub fn get_mint_base_state(mint: &AccountInfo) -> Result<Mint, ProgramError> {
     .base)
 }
 
+/// Get the number of tokens in an account
+///
+/// # Parameters
+/// * `account` - The account from which to get the number of tokens.
+///
+/// # Errors
+/// If the number of tokens could not be retrieved (the given account is not a valid SPL Token 2022 account for example)
+pub fn get_token_amount(account: &AccountInfo) -> Result<u64, ProgramError> {
+    Ok(StateWithExtensions::<Account>::unpack(
+        &account
+            .try_borrow_data()
+            .map_err(|_err| Error::InvalidRawData)?,
+    )
+    .map_err(|_err| Error::InvalidRawData)?
+    .base
+    .amount)
+}
+
 /// Get the number of tokens matching a given mint and amount
 ///
 /// # Parameters
@@ -48,6 +69,6 @@ pub fn get_mint_base_state(mint: &AccountInfo) -> Result<Mint, ProgramError> {
 /// If the state of the mint could not be retrieved (if the account is not a mint for example)
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
-pub fn get_token_amount(mint: &AccountInfo, amount: f64) -> Result<u64, ProgramError> {
+pub fn compute_token_amount(mint: &AccountInfo, amount: f64) -> Result<u64, ProgramError> {
     Ok((amount * 10_f64.powi(i32::from(get_decimals(mint)?))).floor() as u64)
 }
