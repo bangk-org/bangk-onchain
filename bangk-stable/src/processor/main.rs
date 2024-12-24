@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Tuesday 24 December 2024 @ 18:55:36
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -17,7 +17,10 @@ use solana_program::{
 use crate::instruction::BangkStableInstruction;
 
 use super::{
-    admin::{initialize, update_admin_multisig},
+    admin::{
+        add_freeze_authority, freeze, initialize, remove_freeze_authority, thaw,
+        update_admin_multisig,
+    },
     coins::{mint_creation, update_metadata},
     supply::{burn_coin, mint_coin, mint_exchange_coin},
     transfers::{exchange, transfer, update_exchange_rates},
@@ -56,5 +59,13 @@ pub fn process_instruction(
         BangkStableInstruction::Transfer(args) => transfer(program_id, accounts, args),
         BangkStableInstruction::Exchange(args) => exchange(program_id, accounts, &args),
         BangkStableInstruction::Burn(args) => burn_coin(program_id, accounts, args),
+        BangkStableInstruction::AddFreezeAuthority(args) => {
+            add_freeze_authority(program_id, accounts, &args)
+        }
+        BangkStableInstruction::RemoveFreezeAuthority(args) => {
+            remove_freeze_authority(program_id, accounts, &args)
+        }
+        BangkStableInstruction::FreezeAccount => freeze(program_id, accounts),
+        BangkStableInstruction::ThawAccount => thaw(program_id, accounts),
     }
 }

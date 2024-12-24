@@ -23,13 +23,21 @@ use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
     Error as BangkError,
 };
-use bangk_stable::{initialize, process_instruction, ConfigurationPda};
-use common::init_default;
+use bangk_stable::{add_freeze_authority, initialize, mint, process_instruction, ConfigurationPda};
+use common::{add_freeze_key, freeze_ata, init_default, mint_coins, remove_freeze_key, thaw_ata};
 use solana_program_test::{processor, tokio};
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
 use tests_utilities::onchain::Environment;
 
 use crate::common::PROGRAM_ID;
+
+const FREEZE_USER1: &str = "Freeze 1";
+const FREEZE_USER2: &str = "Freeze 2";
+
+const CURRENCY: &str = "Euro BANGK";
+const SYMBOL: &str = "EUB";
+const URI: &str = "https://api.bangk.app/token-eub";
+const DECIMALS: u8 = 2;
 
 #[tokio::test]
 async fn default() -> Result<()> {
@@ -161,6 +169,98 @@ async fn duplicated_key_in_multisig() -> Result<()> {
         res.is_err_and(|err| err == BangkError::DuplicatedKeyInMultisigDefinition),
         "there was an unexpected error in the instruction"
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn add_freeze_auth() -> Result<()> {
+    let mut env = common::init_default().await?;
+
+    let (freeze_pda, _) = MultiSigPda::get_address(MultiSigType::Freeze, &env.program_id);
+    let freeze_old: MultiSigPda = env
+        .from_account(&freeze_pda)
+        .await
+        .ok_or("could not load the freeze multisig")?;
+    assert_eq!(freeze_old.multisig.sig_type, MultiSigType::Freeze);
+    assert!(freeze_old.multisig.keys.is_empty(),);
+
+    add_freeze_key(&mut env, FREEZE_USER1).await?;
+    add_freeze_key(&mut env, FREEZE_USER2).await?;
+
+    let freeze1 = env.wallets[FREEZE_USER1].pubkey();
+    let freeze2 = env.wallets[FREEZE_USER2].pubkey();
+
+    let freeze_new: MultiSigPda = env
+        .from_account(&freeze_pda)
+        .await
+        .ok_or("could not load the freeze multisig")?;
+    assert_eq!(freeze_new.multisig.sig_type, MultiSigType::Freeze);
+    assert_eq!(freeze_new.multisig.keys, &[freeze1, freeze2]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn add_duplicate_freeze_auth() -> Result<()> {
+    let mut env = common::init_default().await?;
+    add_freeze_key(&mut env, FREEZE_USER1).await?;
+    add_freeze_key(&mut env, FREEZE_USER2).await?;
+
+    let admin1 = env.wallets["Admin 1"].pubkey();
+    let admin2 = env.wallets["Admin 2"].pubkey();
+    let admin3 = env.wallets["Admin 3"].pubkey();
+    let user = env.wallets[FREEZE_USER1].pubkey();
+    let instruction = add_freeze_authority(&admin1, &admin2, &admin3, &user)?;
+    let res = env
+        .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
+        .await;
+
+    assert!(
+        res.is_err_and(|err| err == BangkError::DuplicatedKeyInMultisigDefinition),
+        "there was an unexpected error in the instruction"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn remove_freeze_auth() -> Result<()> {
+    let mut env = common::init_default().await?;
+    add_freeze_key(&mut env, FREEZE_USER1).await?;
+    add_freeze_key(&mut env, FREEZE_USER2).await?;
+
+    remove_freeze_key(&mut env, FREEZE_USER1).await?;
+
+    let freeze2 = env.wallets[FREEZE_USER2].pubkey();
+    let (freeze_pda, _) = MultiSigPda::get_address(MultiSigType::Freeze, &env.program_id);
+    let freeze_new: MultiSigPda = env
+        .from_account(&freeze_pda)
+        .await
+        .ok_or("could not load the freeze multisig")?;
+    assert_eq!(freeze_new.multisig.keys, &[freeze2]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn freeze_thaw() -> Result<()> {
+    let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
+    add_freeze_key(&mut env, FREEZE_USER1).await?;
+    add_freeze_key(&mut env, FREEZE_USER2).await?;
+
+    mint_coins(&mut env, SYMBOL, "User 1", 10.0).await?;
+    freeze_ata(&mut env, "User 1", SYMBOL).await?;
+
+    let admin1 = env.wallets["Admin 1"].pubkey();
+    let target = env.wallets["User 1"].pubkey();
+    let instruction = mint(&admin1, &target, SYMBOL, 10.0)?;
+    // println!("Instruction: {instruction:#?}");
+    let res = env.execute_transaction(&[instruction], &["Admin 1"]).await;
+    assert!(res.is_err_and(|err| err == BangkError::InvalidFreezeStatus));
+
+    thaw_ata(&mut env, "User 1", SYMBOL).await?;
+    mint_coins(&mut env, SYMBOL, "User 1", 10.0).await?;
 
     Ok(())
 }

@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Tuesday 24 December 2024 @ 18:55:36
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -26,8 +26,9 @@ use solana_program::{
 use spl_token_2022::instruction::transfer_checked;
 
 use crate::{
-    compute_token_amount, get_decimals, CoinsAmountArgs, ConfigurationPda, ExchangeArgs,
-    UpdateExchangeRatesArgs,
+    compute_token_amount, get_decimals,
+    support::{get_token_amount, is_account_frozen},
+    CoinsAmountArgs, ConfigurationPda, ExchangeArgs, UpdateExchangeRatesArgs,
 };
 
 struct UpdateExchangeRatesAccounts<'a> {
@@ -112,6 +113,13 @@ pub fn transfer(
     check_system_program!(&ctx.program_system);
     check_spl_program!(&ctx.program_token);
 
+    if (ctx.source_ata.lamports() > 0 && is_account_frozen(&ctx.source_ata)?)
+        || (ctx.target_ata.lamports() > 0 && is_account_frozen(&ctx.target_ata)?)
+    {
+        msg!("an account is frozen, aborting");
+        return Err(Error::InvalidFreezeStatus.into());
+    }
+
     if args.amount <= 0.0_f64 {
         msg!("Cannot transfer a negative or null amount of coins");
         return Err(Error::InvalidAmount.into());
@@ -193,6 +201,13 @@ pub fn exchange(
     check_system_program!(&ctx.program_system);
     check_spl_program!(&ctx.program_token);
 
+    if (ctx.source_ata.lamports() > 0 && is_account_frozen(&ctx.source_ata)?)
+        || (ctx.target_ata.lamports() > 0 && is_account_frozen(&ctx.target_ata)?)
+    {
+        msg!("an account is frozen, aborting");
+        return Err(Error::InvalidFreezeStatus.into());
+    }
+
     if args.amount <= 0.0_f64 {
         msg!("Cannot exchange a negative or null amount of coins");
         return Err(Error::InvalidAmount.into());
@@ -212,6 +227,11 @@ pub fn exchange(
     #[allow(clippy::cast_sign_loss)]
     let exchanged_amount =
         (exchanged_amount * 10_f64.powi(i32::from(get_decimals(&ctx.source_mint)?))).ceil() as u64;
+
+    if amount > get_token_amount(&ctx.target_exchange)? {
+        msg!("not enough tokens in the target exchange: aborting");
+        return Err(Error::InsufficientExchangeFunds.into());
+    }
 
     // Transfer source stable coins from user wallet to exchange wallet
     debug!("sending from source to exchange");

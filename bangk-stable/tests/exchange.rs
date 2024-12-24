@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Tuesday 24 December 2024 @ 18:55:36
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -20,6 +20,7 @@ type Result<T> = result::Result<T, Error>;
 
 use std::{collections::HashMap, error, result};
 
+use bangk_onchain_common::Error as BangkError;
 use bangk_stable::{update_exchange_rates, ConfigurationPda};
 use common::{
     create_coin, exchange_coins, get_ata, get_exchange, mint_coins, mint_exchange_coins, to_tokens,
@@ -193,6 +194,70 @@ async fn exchange() -> Result<()> {
     assert_eq!(
         env.get_token_amount(&target_ata).await,
         Some(to_tokens(AMOUNT, TARGET_DECIMALS))
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn not_enough_exchange_funds() -> Result<()> {
+    let mut env = common::init_default().await?;
+
+    // Set exchange rates
+    let rates = HashMap::from([
+        (SOURCE_SYMBOL.to_owned(), EXCHANGE_SOURCE_EUB),
+        (TARGET_SYMBOL.to_owned(), EXCHANGE_TARGET_EUB),
+    ]);
+
+    let admin1 = env.wallets["Admin 1"].pubkey();
+    let instruction1 = update_exchange_rates(&admin1, rates)?;
+    // println!("Instruction: {instruction:#?}");
+    env.execute_transaction(&[instruction1], &["Admin 1"])
+        .await?;
+
+    // At this point exchange rates are set correctly
+
+    create_coin(
+        &mut env,
+        SOURCE_CURRENCY,
+        SOURCE_SYMBOL,
+        URI,
+        SOURCE_DECIMALS,
+    )
+    .await?;
+    mint_exchange_coins(&mut env, SOURCE_SYMBOL, EXCHANGE_SOURCE_AMOUNT).await?;
+    create_coin(
+        &mut env,
+        TARGET_CURRENCY,
+        TARGET_SYMBOL,
+        URI,
+        TARGET_DECIMALS,
+    )
+    .await?;
+
+    let rate = 1.0_f64 / EXCHANGE_SOURCE_EUB * EXCHANGE_TARGET_EUB;
+    println!("rate is {rate}");
+
+    let expected_cost = AMOUNT / rate;
+
+    mint_coins(&mut env, SOURCE_SYMBOL, USER_SOURCE, expected_cost * 2.0).await?;
+    mint_coins(&mut env, TARGET_SYMBOL, USER_TARGET, 0.0).await?;
+    let source_key = env.wallets[USER_SOURCE].pubkey();
+    let target_key = env.wallets[USER_TARGET].pubkey();
+    let instruction2 = bangk_stable::exchange(
+        &source_key,
+        &target_key,
+        SOURCE_SYMBOL,
+        TARGET_SYMBOL,
+        AMOUNT,
+    )?;
+    // println!("Instruction: {instruction:#?}");
+    let res = env
+        .execute_transaction(&[instruction2], &[USER_SOURCE])
+        .await;
+    assert!(
+        res.is_err_and(|err| err == BangkError::InsufficientExchangeFunds),
+        "there was an unexpected error in the instruction"
     );
 
     Ok(())

@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Tuesday 24 December 2024 @ 19:02:27
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -110,6 +110,13 @@ pub struct BurnArgs {
     pub amount: f64,
 }
 
+/// Simple `Pubkey` argument
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
+pub struct AccountArgs {
+    /// Address of the account
+    pub account: Pubkey,
+}
+
 /// Global payload for Bangk program.
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, ShankInstruction)]
 #[rustfmt::skip]
@@ -118,7 +125,8 @@ pub enum BangkStableInstruction {
     #[account(0, signer, writable, name="bangk", desc="Bangk signing account")]
     #[account(1, writable, name="config_pda", desc="The PDA in which the program's configuration is stored")]
     #[account(2, writable, name="admin_pda", desc="The PDA in which keys allowed to perform administration or routine tasks are stored")]
-    #[account(3, name="system_program", desc="System Program")]
+    #[account(3, name="freeze_pda", desc="The PDA in which keys allowed to perform freeze / thaw operations are stored")]
+    #[account(4, name="system_program", desc="System Program")]
     Initialize(InitializeArgs),
 
     /// Update the keys for the Admin `MultiSig`
@@ -212,6 +220,47 @@ pub enum BangkStableInstruction {
     #[account(9, name="system_program", desc="System Program")]
     #[account(10, name="token_program", desc="SPL Token 2022 Program")]
     Exchange(ExchangeArgs),
+
+    /// Add a Pubkey to the accounts authorized to freeze / thaw accounts
+    #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
+    #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
+    #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
+    #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(4, name="freeze_pda", desc="The PDA in which keys allowed to perform freeze / thaw operations are stored")]
+    #[account(5, name="system_program", desc="System Program")]
+    AddFreezeAuthority(AccountArgs),
+
+    /// Remove a Pubkey from the accounts authorized to freeze / thaw accounts
+    #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
+    #[account(1, signer, name="admin2", desc="Second signer for the instruction")]
+    #[account(2, signer, name="admin3", desc="Third signer for the instruction")]
+    #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(4, name="freeze_pda", desc="The PDA in which keys allowed to perform freeze / thaw operations are stored")]
+    #[account(5, name="system_program", desc="System Program")]
+    RemoveFreezeAuthority(AccountArgs),
+
+    /// Freeze an ATA
+    #[account(0, signer, writable, name="bangk", desc="Bangk signing account")]
+    #[account(1, signer, name="freeze_authority", desc="Account authorized to freeze an ATA")]
+    #[account(2, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(3, name="freeze_pda", desc="The PDA in which keys allowed to perform freeze / thaw operations are stored")]
+    #[account(4, name="mint", desc="mint of the ATA to freeze")]
+    #[account(5, writable, name="ata", desc="User ATA to freeze")]
+    #[account(6, name="system_program", desc="System Program")]
+    #[account(7, name="token_program", desc="SPL Token 2022 Program")]
+    FreezeAccount,
+
+    /// Thaw an ATA
+    #[account(0, signer, writable, name="bangk", desc="Bangk signing account")]
+    #[account(1, signer, name="freeze_authority1", desc="Account authorized to thaw an ATA")]
+    #[account(2, signer, name="freeze_authority2", desc="Account authorized to thaw an ATA")]
+    #[account(3, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(4, name="freeze_pda", desc="The PDA in which keys allowed to perform freeze / thaw operations are stored")]
+    #[account(5, name="mint", desc="mint of the ATA to thaw")]
+    #[account(6, writable, name="ata", desc="User ATA to freeze")]
+    #[account(7, name="system_program", desc="System Program")]
+    #[account(8, name="token_program", desc="SPL Token 2022 Program")]
+    ThawAccount,
 }
 
 /// Initializes the ICO program's configuration.
@@ -236,6 +285,8 @@ pub fn initialize(
 ) -> Result<Instruction, ProgramError> {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (freeze_keys_pda, _freeze_bump) =
+        MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
 
     let args = InitializeArgs {
         api_key: *api_key,
@@ -250,6 +301,7 @@ pub fn initialize(
             AccountMeta::new(*payer, true),
             AccountMeta::new(config_pda, false),
             AccountMeta::new(admin_keys_pda, false),
+            AccountMeta::new(freeze_keys_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: borsh::to_vec(&BangkStableInstruction::Initialize(args))?,
@@ -441,7 +493,7 @@ pub fn mint(
 /// * `user` - User burning the stable coins,
 /// * `currency` - Symbol of the Stable Coin,
 /// * `amount` - Amount received by the user,
-/// * `destination` - The account receiving the SOLs of a closing account,
+/// * `destination` - The account receiving the `SOLs` of a closing account,
 /// * `close_empty` - If true, an empty account will be deleted.
 ///
 /// # Errors
@@ -667,5 +719,150 @@ pub fn exchange(
             source: currency_source.to_owned(),
             target: currency_target.to_owned(),
         }))?,
+    })
+}
+
+/// Add a `Pubkey` to the list authorized to perform freeze / thaw operations.
+///
+/// # Parameters
+/// * `admin1` - Key of the payer and first signer of the instruction,
+/// * `admin2` - Key of the second signer of the instruction,
+/// * `admin3` - Key of the third signer of the instruction,
+/// * `account` - Key of the account to authorized.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn add_freeze_authority(
+    admin1: &Pubkey,
+    admin2: &Pubkey,
+    admin3: &Pubkey,
+    account: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (freeze_keys_pda, _freeze_bump) =
+        MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin1, true),
+            AccountMeta::new_readonly(*admin2, true),
+            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(freeze_keys_pda, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::AddFreezeAuthority(AccountArgs {
+            account: *account,
+        }))?,
+    })
+}
+
+/// Removes a `Pubkey` from the list authorized to perform freeze / thaw operations.
+///
+/// # Parameters
+/// * `admin1` - Key of the payer and first signer of the instruction,
+/// * `admin2` - Key of the second signer of the instruction,
+/// * `admin3` - Key of the third signer of the instruction,
+/// * `account` - Key of the account to revoke.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn remove_freeze_authority(
+    admin1: &Pubkey,
+    admin2: &Pubkey,
+    admin3: &Pubkey,
+    account: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (freeze_keys_pda, _freeze_bump) =
+        MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin1, true),
+            AccountMeta::new_readonly(*admin2, true),
+            AccountMeta::new_readonly(*admin3, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new(freeze_keys_pda, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::RemoveFreezeAuthority(
+            AccountArgs { account: *account },
+        ))?,
+    })
+}
+
+/// Freezes an ATA
+///
+/// # Parameters
+/// * `admin` - Key of the payer and first signer of the instruction,
+/// * `freeze` - Key of the account authorized to freeze ATAs,
+/// * `mint` - Mint of the ATA to freeze,
+/// * `user` - User owning the account,
+/// * `account` - Account to freeze.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn freeze_account(
+    admin: &Pubkey,
+    freeze: &Pubkey,
+    mint: &Pubkey,
+    account: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (freeze_keys_pda, _freeze_bump) =
+        MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin, true),
+            AccountMeta::new_readonly(*freeze, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new_readonly(freeze_keys_pda, false),
+            AccountMeta::new_readonly(*mint, false),
+            AccountMeta::new(*account, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::FreezeAccount)?,
+    })
+}
+
+/// Thaws an ATA
+///
+/// # Parameters
+/// * `admin` - Key of the payer and first signer of the instruction,
+/// * `freeze1` - Key of an account authorized to thaw ATAs,
+/// * `freeze2` - Key of an account authorized to thaw ATAs,
+/// * `mint` - Mint of the ATA to thaw,
+/// * `user` - User owning the account,
+/// * `account` - Account to thaw.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn thaw_account(
+    admin: &Pubkey,
+    freeze1: &Pubkey,
+    freeze2: &Pubkey,
+    mint: &Pubkey,
+    account: &Pubkey,
+) -> Result<Instruction, ProgramError> {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+    let (freeze_keys_pda, _freeze_bump) =
+        MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*admin, true),
+            AccountMeta::new_readonly(*freeze1, true),
+            AccountMeta::new_readonly(*freeze2, true),
+            AccountMeta::new_readonly(admin_keys_pda, false),
+            AccountMeta::new_readonly(freeze_keys_pda, false),
+            AccountMeta::new_readonly(*mint, false),
+            AccountMeta::new(*account, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::ThawAccount)?,
     })
 }

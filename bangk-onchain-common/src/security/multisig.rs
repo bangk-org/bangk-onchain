@@ -3,7 +3,7 @@
 // Creation date: Thursday 25 July 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 12 August 2024 @ 16:45:53
+// Last modified: Tuesday 24 December 2024 @ 18:55:36
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -99,19 +99,19 @@ impl MultiSig {
     ) -> ProgramResult {
         let n = level.required_keys() as usize;
 
-        // Get non-duplicated signers
+        // Get the (non-duplicated) signers
         let signers = accounts
             .iter()
-            .take(n)
-            .map(|acc| (acc.is_signer, acc.key))
+            .filter(|account| account.is_signer)
+            .map(|account| *account.key)
             .collect::<HashSet<_>>();
-        if signers.len() < n {
-            return Err(Error::InvalidSigner.into());
-        }
 
+        // If we have the expected amount (or more?) signers in the multisig, then it’s fine, proceed. Otherwise it’s an error.
         if signers
-            .iter()
-            .all(|(signer, key)| *signer && self.keys.contains(key))
+            .into_iter()
+            .filter(|key| self.keys.contains(key))
+            .count()
+            >= n
         {
             Ok(())
         } else {

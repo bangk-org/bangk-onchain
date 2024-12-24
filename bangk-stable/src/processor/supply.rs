@@ -3,7 +3,7 @@
 // Creation date: Tuesday 24 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Tuesday 24 December 2024 @ 18:55:36
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -29,8 +29,9 @@ use spl_associated_token_account::{
 use spl_token_2022::instruction::{burn, close_account, mint_to};
 
 use crate::{
-    compute_token_amount, support::get_token_amount, BurnArgs, CoinsAmountArgs,
-    EXCHANGE_WALLET_SEED,
+    compute_token_amount,
+    support::{get_token_amount, is_account_frozen},
+    BurnArgs, CoinsAmountArgs, EXCHANGE_WALLET_SEED,
 };
 
 struct MintCoinAccounts<'a> {
@@ -84,6 +85,11 @@ pub fn mint_coin(
     check_system_program!(&ctx.program_system);
     check_spl_program!(&ctx.program_token);
     check_ata_program!(&ctx.program_ata);
+
+    if ctx.ata.lamports() > 0 && is_account_frozen(&ctx.ata)? {
+        msg!("destination account is frozen, aborting");
+        return Err(Error::InvalidFreezeStatus.into());
+    }
 
     let ata = get_associated_token_address_with_program_id(
         ctx.user.key,
@@ -276,6 +282,11 @@ pub fn burn_coin(_program_id: &Pubkey, accounts: &[AccountInfo], args: BurnArgs)
     check_system_program!(&ctx.program_system);
     check_spl_program!(&ctx.program_token);
     check_ata_program!(&ctx.program_ata);
+
+    if ctx.ata.lamports() > 0 && is_account_frozen(&ctx.ata)? {
+        msg!("account is frozen, aborting");
+        return Err(Error::InvalidFreezeStatus.into());
+    }
 
     let ata = get_associated_token_address_with_program_id(
         ctx.signer.key,

@@ -5,8 +5,8 @@ ignore = [
   "RUSTSEC-2024-0344",  # Solana dependency
 
   # Warnings
-  "RUSTSEC-2021-0139",  #  ansi_term, solana dependency
   "RUSTSEC-2021-0145",  #  Atty, solana dependency
-  "RUSTSEC-2023-0033",  #  Borsh, solana dependency
+  "RUSTSEC-2024-0375",  # un-maintained atty crate, nothing I can do about it
+  "RUSTSEC-2024-0388",  # un-maintained derivative crate, nothing I can do about it
 ]
 
