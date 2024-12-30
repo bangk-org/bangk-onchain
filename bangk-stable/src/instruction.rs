@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 19:02:27
+// Last modified: Monday 30 December 2024 @ 16:02:51
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -101,15 +101,6 @@ pub struct ExchangeArgs {
     pub amount: f64,
 }
 
-/// Arguments needed to burn stable coins
-#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
-pub struct BurnArgs {
-    /// Close the account if there are no tokens left
-    pub close_empty: bool,
-    /// Amount to burn
-    pub amount: f64,
-}
-
 /// Simple `Pubkey` argument
 #[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug)]
 pub struct AccountArgs {
@@ -182,14 +173,21 @@ pub enum BangkStableInstruction {
 
     /// Burn Stable Coin from a given user
     #[account(0, signer, writable, name="signer", desc="Signer and fee payer for the instruction")]
-    #[account(1, writable, name="destination", desc="The account to which a closing account will send its SOL")]
-    #[account(2, writable, name="mint", desc="Mint of the stable coin")]
-    #[account(3, name="user", desc="User receiving the newly minted coins")]
-    #[account(4, writable, name="ata", desc="User ATA where the coins are stored")]
-    #[account(5, name="system_program", desc="System Program")]
-    #[account(6, name="token_program", desc="SPL Token 2022 Program")]
-    #[account(7, name="ata_program", desc="Associated Token Account Program")]
-    Burn(BurnArgs),
+    #[account(1, writable, name="mint", desc="Mint of the stable coin")]
+    #[account(2, name="user", desc="User owning the burned coins")]
+    #[account(3, writable, name="ata", desc="User ATA where the coins are stored")]
+    #[account(4, name="system_program", desc="System Program")]
+    #[account(5, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(6, name="ata_program", desc="Associated Token Account Program")]
+    Burn(CoinsAmountArgs),
+
+    /// Close a user’s ATA
+    #[account(0, signer, writable, name="signer", desc="Signer and fee payer for the instruction (owner of the account)")]
+    #[account(1, writable, name="destination", desc="The account to which the closing account will send its SOL")]
+    #[account(2, writable, name="ata", desc="User ATA where the coins are stored")]
+    #[account(3, name="system_program", desc="System Program")]
+    #[account(4, name="token_program", desc="SPL Token 2022 Program")]
+    CloseAccount,
 
     /// Set or update currency exchange rates.
     #[account(0, signer, writable, name="bangk", desc="Bangk signing account")]
@@ -493,17 +491,44 @@ pub fn mint(
 /// * `user` - User burning the stable coins,
 /// * `currency` - Symbol of the Stable Coin,
 /// * `amount` - Amount received by the user,
-/// * `destination` - The account receiving the `SOLs` of a closing account,
-/// * `close_empty` - If true, an empty account will be deleted.
 ///
 /// # Errors
 /// If instruction's data could not be serialized (so…never?)
-pub fn burn(
+pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Result<Instruction, ProgramError> {
+    let mint = Pubkey::find_program_address(
+        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
+        &crate::ID,
+    )
+    .0;
+    let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
+
+    Ok(Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(*user, true),
+            AccountMeta::new(mint, false),
+            AccountMeta::new(ata, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(spl_token_2022::ID, false),
+            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
+        ],
+        data: borsh::to_vec(&BangkStableInstruction::Burn(CoinsAmountArgs { amount }))?,
+    })
+}
+
+/// Closes an ATA, retrieving its rent.
+///
+/// # Parameters
+/// * `user` - User closing the ATA,
+/// * `currency` - Symbol of the Stable Coin for which the ATA will be closed,
+/// * `destination` - The account receiving the `SOLs` of the closing account.
+///
+/// # Errors
+/// If instruction's data could not be serialized (so…never?)
+pub fn close_stable_account(
     user: &Pubkey,
     currency: &str,
-    amount: f64,
     destination: &Pubkey,
-    close_empty: bool,
 ) -> Result<Instruction, ProgramError> {
     let mint = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
@@ -517,16 +542,11 @@ pub fn burn(
         accounts: vec![
             AccountMeta::new(*user, true),
             AccountMeta::new(*destination, false),
-            AccountMeta::new(mint, false),
             AccountMeta::new(ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
-            AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::Burn(BurnArgs {
-            close_empty,
-            amount,
-        }))?,
+        data: borsh::to_vec(&BangkStableInstruction::CloseAccount)?,
     })
 }
 

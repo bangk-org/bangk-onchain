@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 19:02:48
+// Last modified: Monday 30 December 2024 @ 16:03:03
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -17,9 +17,9 @@ type Result<T> = result::Result<T, Error>;
 use std::{error, result};
 
 use bangk_stable::{
-    add_freeze_authority, burn, create_stable_coin, exchange, freeze_account, initialize, mint,
-    mint_to_exchange, process_instruction, remove_freeze_authority, thaw_account, transfer,
-    EXCHANGE_WALLET_SEED, STABLE_MINT_SEED,
+    add_freeze_authority, burn, close_stable_account, create_stable_coin, exchange, freeze_account,
+    initialize, mint, mint_to_exchange, process_instruction, remove_freeze_authority, thaw_account,
+    transfer, EXCHANGE_WALLET_SEED, STABLE_MINT_SEED,
 };
 use solana_program_test::processor;
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
@@ -240,12 +240,29 @@ pub async fn burn_coins(
     currency: &str,
     user: &str,
     amount: f64,
-    close_empty: bool,
 ) -> Result<()> {
+    let user_key = env.wallets[user].pubkey();
+    let instruction = burn(&user_key, currency, amount)?;
+    // println!("Instruction: {instruction:#?}");
+    env.execute_transaction(&[instruction], &[user]).await?;
+
+    Ok(())
+}
+
+/// Close a user’s ATA for the given currency.
+///
+/// # Parameters
+/// * `env` - The testing environment,
+/// * `currency` - The currency of the closing account,
+/// * `target` - The user owning the account.
+///
+/// # Errors
+/// If the account could not be closed
+pub async fn close_account(env: &mut Environment, currency: &str, user: &str) -> Result<()> {
     let admin1 = env.wallets["Admin 1"].pubkey();
     let user_key = env.wallets[user].pubkey();
-    let instruction = burn(&user_key, currency, amount, &admin1, close_empty)?;
-    // println!("Instruction: {instruction:#?}");
+    let instruction = close_stable_account(&user_key, currency, &admin1)?;
+
     env.execute_transaction(&[instruction], &[user]).await?;
 
     Ok(())

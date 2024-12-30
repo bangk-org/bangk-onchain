@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Monday 30 December 2024 @ 16:02:00
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -22,7 +22,8 @@ use std::{error, result};
 
 pub mod common;
 use common::{
-    burn_coins, get_ata, get_exchange, get_mint, mint_coins, mint_exchange_coins, to_tokens,
+    burn_coins, close_account, get_ata, get_exchange, get_mint, mint_coins, mint_exchange_coins,
+    to_tokens,
 };
 use solana_program_test::tokio;
 
@@ -92,7 +93,7 @@ async fn burn_operation() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
 
     mint_coins(&mut env, SYMBOL, USER, AMOUNT * 2.0).await?;
-    burn_coins(&mut env, SYMBOL, USER, AMOUNT, true).await?;
+    burn_coins(&mut env, SYMBOL, USER, AMOUNT).await?;
 
     let ata = get_ata(&env, USER, SYMBOL);
     let amount = env
@@ -110,7 +111,8 @@ async fn burn_and_close() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
 
     mint_coins(&mut env, SYMBOL, USER, AMOUNT).await?;
-    burn_coins(&mut env, SYMBOL, USER, AMOUNT, true).await?;
+    burn_coins(&mut env, SYMBOL, USER, AMOUNT).await?;
+    close_account(&mut env, SYMBOL, USER).await?;
 
     let ata = get_ata(&env, USER, SYMBOL);
     assert!(env.get_account(&ata).await.is_none());

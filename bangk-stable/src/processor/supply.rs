@@ -3,7 +3,7 @@
 // Creation date: Tuesday 24 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 18:55:36
+// Last modified: Monday 30 December 2024 @ 16:01:28
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -31,7 +31,7 @@ use spl_token_2022::instruction::{burn, close_account, mint_to};
 use crate::{
     compute_token_amount,
     support::{get_token_amount, is_account_frozen},
-    BurnArgs, CoinsAmountArgs, EXCHANGE_WALLET_SEED,
+    CoinsAmountArgs, EXCHANGE_WALLET_SEED,
 };
 
 struct MintCoinAccounts<'a> {
@@ -61,7 +61,6 @@ impl<'a> MintCoinAccounts<'a> {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 pub fn mint_coin(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -181,7 +180,7 @@ impl<'a> MintExchangeCoinAccounts<'a> {
         })
     }
 }
-#[allow(clippy::too_many_lines)]
+
 pub fn mint_exchange_coin(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -244,7 +243,6 @@ pub fn mint_exchange_coin(
 
 struct BurnCoinAccounts<'a> {
     signer: AccountInfo<'a>,
-    destination: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     ata: AccountInfo<'a>,
     program_system: AccountInfo<'a>,
@@ -257,7 +255,6 @@ impl<'a> BurnCoinAccounts<'a> {
         let accounts_iter = &mut accounts.iter();
         Ok(Self {
             signer: next_account_info(accounts_iter)?.clone(),
-            destination: next_account_info(accounts_iter)?.clone(),
             mint: next_account_info(accounts_iter)?.clone(),
             ata: next_account_info(accounts_iter)?.clone(),
             program_system: next_account_info(accounts_iter)?.clone(),
@@ -267,8 +264,11 @@ impl<'a> BurnCoinAccounts<'a> {
     }
 }
 
-#[allow(clippy::too_many_lines)]
-pub fn burn_coin(_program_id: &Pubkey, accounts: &[AccountInfo], args: BurnArgs) -> ProgramResult {
+pub fn burn_coin(
+    _program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    args: CoinsAmountArgs,
+) -> ProgramResult {
     let ctx = BurnCoinAccounts::new(accounts)?;
     msg!("Bangk: burning {} from {}", ctx.mint.key, ctx.signer.key);
 
@@ -313,7 +313,6 @@ pub fn burn_coin(_program_id: &Pubkey, accounts: &[AccountInfo], args: BurnArgs)
         msg!("tried to burn more tokens than present in the account: aborting");
         return Err(Error::InvalidAmount.into());
     }
-    let close = args.close_empty && amount == ata_amount;
 
     debug!("number of tokens to burn: {amount}");
 
@@ -328,21 +327,57 @@ pub fn burn_coin(_program_id: &Pubkey, accounts: &[AccountInfo], args: BurnArgs)
             amount,
         )?,
         &[ctx.ata.clone(), ctx.mint.clone(), ctx.signer.clone()],
-    )?;
+    )
+}
 
-    // Close the account if requested (and empty)
-    if close {
-        invoke(
-            &close_account(
-                &spl_token_2022::id(),
-                ctx.ata.key,
-                ctx.destination.key,
-                ctx.signer.key,
-                &[],
-            )?,
-            &[ctx.ata.clone(), ctx.destination.clone(), ctx.signer.clone()],
-        )?;
+struct CloseAccountAccounts<'a> {
+    signer: AccountInfo<'a>,
+    destination: AccountInfo<'a>,
+    ata: AccountInfo<'a>,
+    program_system: AccountInfo<'a>,
+    program_token: AccountInfo<'a>,
+}
+
+impl<'a> CloseAccountAccounts<'a> {
+    fn new(accounts: &[AccountInfo<'a>]) -> Result<Self, ProgramError> {
+        let accounts_iter = &mut accounts.iter();
+        Ok(Self {
+            signer: next_account_info(accounts_iter)?.clone(),
+            destination: next_account_info(accounts_iter)?.clone(),
+            ata: next_account_info(accounts_iter)?.clone(),
+            program_system: next_account_info(accounts_iter)?.clone(),
+            program_token: next_account_info(accounts_iter)?.clone(),
+        })
+    }
+}
+
+pub fn close_ata(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let ctx = CloseAccountAccounts::new(accounts)?;
+    msg!("Bangk: closing account {}", ctx.ata.key);
+
+    check_ata_owner!(&ctx.signer, &ctx.ata);
+    check_system_program!(&ctx.program_system);
+    check_spl_program!(&ctx.program_token);
+
+    if ctx.ata.lamports() > 0 && is_account_frozen(&ctx.ata)? {
+        msg!("account is frozen, aborting");
+        return Err(Error::InvalidFreezeStatus.into());
     }
 
-    Ok(())
+    // Make sure there are no tokens left in the ATA
+    if get_token_amount(&ctx.ata)? > 0 {
+        msg!("cannot close an account still holding tokens.");
+        return Err(Error::InvalidAtaData.into());
+    }
+
+    invoke(
+        &close_account(
+            &spl_token_2022::id(),
+            ctx.ata.key,
+            ctx.destination.key,
+            ctx.signer.key,
+            &[],
+        )?,
+        &[ctx.ata.clone(), ctx.destination.clone(), ctx.signer.clone()],
+    )
 }

@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 18:55:36
+// Last modified: Monday 30 December 2024 @ 15:57:55
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -22,7 +22,7 @@ use super::{
         update_admin_multisig,
     },
     coins::{mint_creation, update_metadata},
-    supply::{burn_coin, mint_coin, mint_exchange_coin},
+    supply::{burn_coin, close_ata, mint_coin, mint_exchange_coin},
     transfers::{exchange, transfer, update_exchange_rates},
 };
 
@@ -67,5 +67,6 @@ pub fn process_instruction(
         }
         BangkStableInstruction::FreezeAccount => freeze(program_id, accounts),
         BangkStableInstruction::ThawAccount => thaw(program_id, accounts),
+        BangkStableInstruction::CloseAccount => close_ata(program_id, accounts),
     }
 }
