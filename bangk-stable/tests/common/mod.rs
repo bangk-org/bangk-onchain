@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:03:03
+// Last modified: Monday 30 December 2024 @ 16:37:18
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -11,11 +11,11 @@
 #![allow(clippy::panic)]
 #![allow(clippy::print_stdout)]
 
-type Error = Box<dyn error::Error>;
 type Result<T> = result::Result<T, Error>;
 
-use std::{error, result};
+use core::result;
 
+use bangk_onchain_common::Error;
 use bangk_stable::{
     add_freeze_authority, burn, close_stable_account, create_stable_coin, exchange, freeze_account,
     initialize, mint, mint_to_exchange, process_instruction, remove_freeze_authority, thaw_account,
@@ -87,10 +87,7 @@ pub fn get_ata(env: &Environment, user: &str, currency_symbol: &str) -> Pubkey {
 pub async fn init_default() -> Result<Environment> {
     let mut env =
         Environment::new(PROGRAM_ID, "bangk_stable", processor!(process_instruction)).await;
-    let api_key = env
-        .wallets
-        .get("API")
-        .ok_or("no API key in the environment")?;
+    let api_key = env.wallets.get("API").ok_or(Error::UnknownError)?;
     let api_pub = api_key.pubkey();
 
     let admin1 = env.add_wallet("Admin 1").await;
@@ -102,7 +99,7 @@ pub async fn init_default() -> Result<Environment> {
     let _freeze1 = env.add_wallet("Freeze 1").await;
     let _freeze2 = env.add_wallet("Freeze 2").await;
 
-    let instruction = initialize(&api_pub, &api_pub, &admin1, &admin2, &admin3, &admin4)?;
+    let instruction = initialize(&api_pub, &api_pub, &admin1, &admin2, &admin3, &admin4);
     env.execute_transaction(&[instruction], &["API"]).await?;
 
     Ok(env)
@@ -170,11 +167,9 @@ pub async fn create_coin(
         symbol.to_owned(),
         uri.to_owned(),
         decimals,
-    )?;
+    );
     env.execute_transaction(&[instruction1], &["Admin 1", "Admin 2", "Admin 3"])
-        .await?;
-
-    Ok(())
+        .await
 }
 
 /// Mint tokens
@@ -195,12 +190,9 @@ pub async fn mint_coins(
 ) -> Result<()> {
     let admin1 = env.wallets["Admin 1"].pubkey();
     let target = env.wallets[target].pubkey();
-    let instruction = mint(&admin1, &target, currency, amount)?;
+    let instruction = mint(&admin1, &target, currency, amount);
     // println!("Instruction: {instruction:#?}");
-    env.execute_transaction(&[instruction], &["Admin 1"])
-        .await?;
-
-    Ok(())
+    env.execute_transaction(&[instruction], &["Admin 1"]).await
 }
 
 /// Mint tokens to the given currency’s exchange PDA
@@ -216,12 +208,10 @@ pub async fn mint_exchange_coins(env: &mut Environment, currency: &str, amount: 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin3 = env.wallets["Admin 3"].pubkey();
-    let instruction = mint_to_exchange(&admin1, &admin2, &admin3, currency, amount)?;
+    let instruction = mint_to_exchange(&admin1, &admin2, &admin3, currency, amount);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
-        .await?;
-
-    Ok(())
+        .await
 }
 
 /// Burn tokens
@@ -242,11 +232,9 @@ pub async fn burn_coins(
     amount: f64,
 ) -> Result<()> {
     let user_key = env.wallets[user].pubkey();
-    let instruction = burn(&user_key, currency, amount)?;
+    let instruction = burn(&user_key, currency, amount);
     // println!("Instruction: {instruction:#?}");
-    env.execute_transaction(&[instruction], &[user]).await?;
-
-    Ok(())
+    env.execute_transaction(&[instruction], &[user]).await
 }
 
 /// Close a user’s ATA for the given currency.
@@ -261,11 +249,9 @@ pub async fn burn_coins(
 pub async fn close_account(env: &mut Environment, currency: &str, user: &str) -> Result<()> {
     let admin1 = env.wallets["Admin 1"].pubkey();
     let user_key = env.wallets[user].pubkey();
-    let instruction = close_stable_account(&user_key, currency, &admin1)?;
+    let instruction = close_stable_account(&user_key, currency, &admin1);
 
-    env.execute_transaction(&[instruction], &[user]).await?;
-
-    Ok(())
+    env.execute_transaction(&[instruction], &[user]).await
 }
 
 /// Transfer tokens
@@ -288,11 +274,9 @@ pub async fn transfer_coins(
 ) -> Result<()> {
     let source_key = env.wallets[source].pubkey();
     let target_key = env.wallets[target].pubkey();
-    let instruction = transfer(&source_key, &target_key, currency, amount)?;
+    let instruction = transfer(&source_key, &target_key, currency, amount);
     // println!("Instruction: {instruction:#?}");
-    env.execute_transaction(&[instruction], &[source]).await?;
-
-    Ok(())
+    env.execute_transaction(&[instruction], &[source]).await
 }
 
 /// Exchange tokens
@@ -323,11 +307,9 @@ pub async fn exchange_coins(
         source_currency,
         target_currency,
         amount,
-    )?;
+    );
     // println!("Instruction: {instruction:#?}");
-    env.execute_transaction(&[instruction], &[source]).await?;
-
-    Ok(())
+    env.execute_transaction(&[instruction], &[source]).await
 }
 
 /// Add a user to the accounts authorized to freeze accounts
@@ -343,12 +325,10 @@ pub async fn add_freeze_key(env: &mut Environment, user: &str) -> Result<()> {
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin3 = env.wallets["Admin 3"].pubkey();
     let user = env.wallets[user].pubkey();
-    let instruction = add_freeze_authority(&admin1, &admin2, &admin3, &user)?;
+    let instruction = add_freeze_authority(&admin1, &admin2, &admin3, &user);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
-        .await?;
-
-    Ok(())
+        .await
 }
 
 /// Remove a user from the accounts authorized to freeze accounts
@@ -364,12 +344,10 @@ pub async fn remove_freeze_key(env: &mut Environment, user: &str) -> Result<()> 
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin3 = env.wallets["Admin 3"].pubkey();
     let user = env.wallets[user].pubkey();
-    let instruction = remove_freeze_authority(&admin1, &admin2, &admin3, &user)?;
+    let instruction = remove_freeze_authority(&admin1, &admin2, &admin3, &user);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
-        .await?;
-
-    Ok(())
+        .await
 }
 
 /// Freeze an account
@@ -386,12 +364,10 @@ pub async fn freeze_ata(env: &mut Environment, user: &str, currency_symbol: &str
     let freeze = env.wallets["Freeze 1"].pubkey();
     let mint = get_mint(currency_symbol);
     let ata = get_ata(env, user, currency_symbol);
-    let instruction = freeze_account(&admin1, &freeze, &mint, &ata)?;
+    let instruction = freeze_account(&admin1, &freeze, &mint, &ata);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Freeze 1"])
-        .await?;
-
-    Ok(())
+        .await
 }
 
 /// Thaw an account
@@ -409,10 +385,8 @@ pub async fn thaw_ata(env: &mut Environment, user: &str, currency_symbol: &str) 
     let freeze2 = env.wallets["Freeze 2"].pubkey();
     let mint = get_mint(currency_symbol);
     let ata = get_ata(env, user, currency_symbol);
-    let instruction = thaw_account(&admin1, &freeze1, &freeze2, &mint, &ata)?;
+    let instruction = thaw_account(&admin1, &freeze1, &freeze2, &mint, &ata);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Freeze 1", "Freeze 2"])
-        .await?;
-
-    Ok(())
+        .await
 }

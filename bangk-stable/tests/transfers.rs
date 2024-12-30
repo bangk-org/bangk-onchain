@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Monday 30 December 2024 @ 16:19:37
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -21,7 +21,6 @@ type Result<T> = result::Result<T, Error>;
 use std::{error, result};
 
 use bangk_onchain_common::Error as BangkError;
-use bangk_stable::transfer;
 use common::{get_ata, mint_coins, transfer_coins};
 pub mod common;
 
@@ -78,12 +77,8 @@ async fn default() -> Result<()> {
 #[tokio::test]
 async fn transfer_to_nonexisting_ata() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
-    let source = env.add_wallet("User 1").await;
-    let target = env.add_wallet("User 2").await;
 
-    let instruction = transfer(&source, &target, SYMBOL, AMOUNT)?;
-    // println!("Instruction: {instruction:#?}");
-    let res = env.execute_transaction(&[instruction], &["User 1"]).await;
+    let res = transfer_coins(&mut env, SYMBOL, "User 1", "User 2", AMOUNT).await;
 
     assert!(
         res.is_err_and(|err| err == BangkError::ATADoesNotExist),

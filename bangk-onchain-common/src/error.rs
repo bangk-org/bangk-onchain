@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Wednesday 21 August 2024 @ 19:33:07
+// Last modified: Monday 30 December 2024 @ 16:36:00
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -212,6 +212,7 @@ impl From<u32> for Error {
             x if x == Self::InsufficientFunds as u32 => Self::InsufficientFunds,
             x if x == Self::InvalidAmount as u32 => Self::InvalidAmount,
             x if x == Self::InvalidAta as u32 => Self::InvalidAta,
+            x if x == Self::InvalidAtaData as u32 => Self::InvalidAtaData,
             x if x == Self::InvalidExchangeRate as u32 => Self::InvalidExchangeRate,
             x if x == Self::InvalidFreezeStatus as u32 => Self::InvalidFreezeStatus,
             x if x == Self::InvalidOperation as u32 => Self::InvalidOperation,

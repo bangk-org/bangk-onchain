@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 18:55:36
+// Last modified: Monday 30 December 2024 @ 16:20:58
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -56,7 +56,7 @@ async fn setup() -> Result<Environment> {
     ]);
 
     let admin1 = env.wallets["Admin 1"].pubkey();
-    let instruction = update_exchange_rates(&admin1, rates)?;
+    let instruction = update_exchange_rates(&admin1, rates);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1"])
         .await?;
@@ -105,7 +105,7 @@ async fn set_exchange_rates() -> Result<()> {
     ]);
 
     let admin1 = env.wallets["Admin 1"].pubkey();
-    let instruction = update_exchange_rates(&admin1, rates)?;
+    let instruction = update_exchange_rates(&admin1, rates);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1"])
         .await?;
@@ -210,7 +210,7 @@ async fn not_enough_exchange_funds() -> Result<()> {
     ]);
 
     let admin1 = env.wallets["Admin 1"].pubkey();
-    let instruction1 = update_exchange_rates(&admin1, rates)?;
+    let instruction1 = update_exchange_rates(&admin1, rates);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction1], &["Admin 1"])
         .await?;
@@ -242,19 +242,16 @@ async fn not_enough_exchange_funds() -> Result<()> {
 
     mint_coins(&mut env, SOURCE_SYMBOL, USER_SOURCE, expected_cost * 2.0).await?;
     mint_coins(&mut env, TARGET_SYMBOL, USER_TARGET, 0.0).await?;
-    let source_key = env.wallets[USER_SOURCE].pubkey();
-    let target_key = env.wallets[USER_TARGET].pubkey();
-    let instruction2 = bangk_stable::exchange(
-        &source_key,
-        &target_key,
+
+    let res = exchange_coins(
+        &mut env,
         SOURCE_SYMBOL,
         TARGET_SYMBOL,
+        USER_SOURCE,
+        USER_TARGET,
         AMOUNT,
-    )?;
-    // println!("Instruction: {instruction:#?}");
-    let res = env
-        .execute_transaction(&[instruction2], &[USER_SOURCE])
-        .await;
+    )
+    .await;
     assert!(
         res.is_err_and(|err| err == BangkError::InsufficientExchangeFunds),
         "there was an unexpected error in the instruction"

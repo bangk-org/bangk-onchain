@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 17:23:10
+// Last modified: Monday 30 December 2024 @ 16:25:32
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -26,7 +26,7 @@ use bangk_onchain_common::{
     Error as BangkError,
 };
 use bangk_stable::{create_stable_coin, update_stable_coin};
-use common::{get_exchange, get_mint};
+use common::{create_coin, get_exchange, get_mint};
 use solana_program_test::tokio;
 use solana_sdk::signer::Signer;
 
@@ -86,7 +86,7 @@ async fn wrong_signer() -> Result<()> {
         SYMBOL.to_owned(),
         URI.to_owned(),
         DECIMALS,
-    )?;
+    );
     let res = env
         .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "User"])
         .await;
@@ -101,22 +101,7 @@ async fn wrong_signer() -> Result<()> {
 #[tokio::test]
 async fn double_creation() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
-    let admin1 = env.wallets["Admin 1"].pubkey();
-    let admin2 = env.wallets["Admin 2"].pubkey();
-    let admin3 = env.wallets["Admin 3"].pubkey();
-    let instruction = create_stable_coin(
-        &admin1,
-        &admin2,
-        &admin3,
-        CURRENCY.to_owned(),
-        SYMBOL.to_owned(),
-        URI.to_owned(),
-        DECIMALS,
-    )?;
-    // println!("Instruction: {instruction:#?}");
-    let res = env
-        .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
-        .await;
+    let res = create_coin(&mut env, CURRENCY, SYMBOL, URI, DECIMALS).await;
     assert!(
         res.is_err_and(|err| err == BangkError::UniqueOperationAlreadyExecuted),
         "there was an unexpected error in the instruction"
@@ -142,7 +127,7 @@ async fn update_metadata() -> Result<()> {
         &mint,
         Some(new_name.to_owned()),
         Some(new_uri.to_owned()),
-    )?;
+    );
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
         .await?;
@@ -166,7 +151,7 @@ async fn update_metadata_nodata() -> Result<()> {
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin3 = env.wallets["Admin 3"].pubkey();
     let mint = get_mint(SYMBOL);
-    let instruction = update_stable_coin(&admin1, &admin2, &admin3, &mint, None, None)?;
+    let instruction = update_stable_coin(&admin1, &admin2, &admin3, &mint, None, None);
     // println!("Instruction: {instruction:#?}");
     let res = env
         .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])

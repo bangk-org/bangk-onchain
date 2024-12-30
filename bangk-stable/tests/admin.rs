@@ -1,9 +1,9 @@
-// File: bangk-stable/tests/initialize.rs
+// File: bangk-stable/tests/admin.rs
 // Project: bangk-onchain
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Sunday 22 December 2024 @ 18:54:24
+// Last modified: Monday 30 December 2024 @ 16:23:39
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -23,7 +23,7 @@ use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
     Error as BangkError,
 };
-use bangk_stable::{add_freeze_authority, initialize, mint, process_instruction, ConfigurationPda};
+use bangk_stable::{initialize, process_instruction, ConfigurationPda};
 use common::{add_freeze_key, freeze_ata, init_default, mint_coins, remove_freeze_key, thaw_ata};
 use solana_program_test::{processor, tokio};
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
@@ -61,7 +61,7 @@ async fn default() -> Result<()> {
         &admin2,
         &admin3,
         &admin4,
-    )?;
+    );
     env.execute_transaction(&[instruction], &["API"]).await?;
 
     let (config_pda, _) = ConfigurationPda::get_address(&bangk_stable::ID);
@@ -106,7 +106,7 @@ async fn wrong_signer() -> Result<()> {
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
         &Pubkey::new_unique(),
-    )?;
+    );
     let res = env.execute_transaction(&[instruction], &["random"]).await;
     println!("{res:?}");
     assert!(res.is_err_and(|err| err == BangkError::InvalidSigner));
@@ -133,7 +133,7 @@ async fn double_init() -> Result<()> {
         &admin2,
         &admin3,
         &admin4,
-    )?;
+    );
     let res = env.execute_transaction(&[instruction], &["API"]).await;
     assert!(
         res.is_err_and(|err| err == BangkError::UniqueOperationAlreadyExecuted),
@@ -163,7 +163,7 @@ async fn duplicated_key_in_multisig() -> Result<()> {
         &admin2,
         &admin3,
         &admin3,
-    )?;
+    );
     let res = env.execute_transaction(&[instruction], &["API"]).await;
     assert!(
         res.is_err_and(|err| err == BangkError::DuplicatedKeyInMultisigDefinition),
@@ -207,15 +207,7 @@ async fn add_duplicate_freeze_auth() -> Result<()> {
     add_freeze_key(&mut env, FREEZE_USER1).await?;
     add_freeze_key(&mut env, FREEZE_USER2).await?;
 
-    let admin1 = env.wallets["Admin 1"].pubkey();
-    let admin2 = env.wallets["Admin 2"].pubkey();
-    let admin3 = env.wallets["Admin 3"].pubkey();
-    let user = env.wallets[FREEZE_USER1].pubkey();
-    let instruction = add_freeze_authority(&admin1, &admin2, &admin3, &user)?;
-    let res = env
-        .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
-        .await;
-
+    let res = add_freeze_key(&mut env, FREEZE_USER1).await;
     assert!(
         res.is_err_and(|err| err == BangkError::DuplicatedKeyInMultisigDefinition),
         "there was an unexpected error in the instruction"
@@ -252,11 +244,7 @@ async fn freeze_thaw() -> Result<()> {
     mint_coins(&mut env, SYMBOL, "User 1", 10.0).await?;
     freeze_ata(&mut env, "User 1", SYMBOL).await?;
 
-    let admin1 = env.wallets["Admin 1"].pubkey();
-    let target = env.wallets["User 1"].pubkey();
-    let instruction = mint(&admin1, &target, SYMBOL, 10.0)?;
-    // println!("Instruction: {instruction:#?}");
-    let res = env.execute_transaction(&[instruction], &["Admin 1"]).await;
+    let res = mint_coins(&mut env, SYMBOL, "User 1", 1.0).await;
     assert!(res.is_err_and(|err| err == BangkError::InvalidFreezeStatus));
 
     thaw_ata(&mut env, "User 1", SYMBOL).await?;

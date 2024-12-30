@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:02:00
+// Last modified: Monday 30 December 2024 @ 16:34:00
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -21,6 +21,7 @@ type Result<T> = result::Result<T, Error>;
 use std::{error, result};
 
 pub mod common;
+use bangk_onchain_common::Error as BangkError;
 use common::{
     burn_coins, close_account, get_ata, get_exchange, get_mint, mint_coins, mint_exchange_coins,
     to_tokens,
@@ -116,6 +117,22 @@ async fn burn_and_close() -> Result<()> {
 
     let ata = get_ata(&env, USER, SYMBOL);
     assert!(env.get_account(&ata).await.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn close_non_empty_account() -> Result<()> {
+    let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
+
+    mint_coins(&mut env, SYMBOL, USER, AMOUNT).await?;
+    let res = close_account(&mut env, SYMBOL, USER).await;
+
+    assert!(
+        res.as_ref()
+            .is_err_and(|err| *err == BangkError::InvalidAtaData),
+        "actual result: {res:#?}"
+    );
 
     Ok(())
 }

@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:02:51
+// Last modified: Monday 30 December 2024 @ 16:15:12
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -17,7 +17,6 @@ use shank::ShankInstruction;
 use solana_program::pubkey::Pubkey;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
-    program_error::ProgramError,
     system_program,
 };
 use spl_associated_token_account::get_associated_token_address_with_program_id;
@@ -270,9 +269,7 @@ pub enum BangkStableInstruction {
 /// * `admin2` - Second key for the admin `MultiSig`
 /// * `admin3` - Third key for the admin `MultiSig`
 /// * `admin4` - Fourth key for the admin `MultiSig`
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn initialize(
     payer: &Pubkey,
     api_key: &Pubkey,
@@ -280,7 +277,7 @@ pub fn initialize(
     admin2: &Pubkey,
     admin3: &Pubkey,
     admin4: &Pubkey,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (freeze_keys_pda, _freeze_bump) =
@@ -293,7 +290,7 @@ pub fn initialize(
         admin3: *admin3,
         admin4: *admin4,
     };
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*payer, true),
@@ -302,8 +299,8 @@ pub fn initialize(
             AccountMeta::new(freeze_keys_pda, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::Initialize(args))?,
-    })
+        data: borsh::to_vec(&BangkStableInstruction::Initialize(args)).unwrap_or_default(),
+    }
 }
 
 /// Create the instruction for the creation of the BGK mint and the initial mint of the tokens.
@@ -317,9 +314,7 @@ pub fn initialize(
 /// * `new_admin2` - Second key for the admin `MultiSig`
 /// * `new_admin3` - Third key for the admin `MultiSig`
 /// * `new_admin4` - Fourth key for the admin `MultiSig`
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn update_admin_multisig(
     admin1: &Pubkey,
@@ -330,9 +325,9 @@ pub fn update_admin_multisig(
     new_admin2: &Pubkey,
     new_admin3: &Pubkey,
     new_admin4: &Pubkey,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin1, true),
@@ -349,8 +344,9 @@ pub fn update_admin_multisig(
                 admin3: *new_admin3,
                 admin4: *new_admin4,
             },
-        ))?,
-    })
+        ))
+        .unwrap_or_default(),
+    }
 }
 
 /// Create the instruction for the creation of a new stable coin
@@ -363,9 +359,7 @@ pub fn update_admin_multisig(
 /// * `symbol` - Symbol of the Stable Coin to create,
 /// * `uri` - URI of the Stable Coin to create,
 /// * `decimals` - Number of decimals used by the Stable Coin.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn create_stable_coin(
     admin1: &Pubkey,
     admin2: &Pubkey,
@@ -374,7 +368,7 @@ pub fn create_stable_coin(
     symbol: String,
     uri: String,
     decimals: u8,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let mint = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), symbol.as_bytes()],
@@ -386,7 +380,7 @@ pub fn create_stable_coin(
         &crate::ID,
     )
     .0;
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin1, true),
@@ -403,8 +397,9 @@ pub fn create_stable_coin(
             symbol,
             uri,
             decimals,
-        }))?,
-    })
+        }))
+        .unwrap_or_default(),
+    }
 }
 
 /// Create the instruction to update the metadata of a stable coin
@@ -416,9 +411,7 @@ pub fn create_stable_coin(
 /// * `mint` - The mint of the currency to update,
 /// * `currency` - New name of the Stable Coin,
 /// * `uri` - New URI of the Stable Coin,
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn update_stable_coin(
     admin1: &Pubkey,
     admin2: &Pubkey,
@@ -426,9 +419,9 @@ pub fn update_stable_coin(
     mint: &Pubkey,
     currency: Option<String>,
     uri: Option<String>,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin1, true),
@@ -441,8 +434,9 @@ pub fn update_stable_coin(
         ],
         data: borsh::to_vec(&BangkStableInstruction::UpdateCoinMetadata(
             UpdateCoinMetadataArgs { currency, uri },
-        ))?,
-    })
+        ))
+        .unwrap_or_default(),
+    }
 }
 
 /// Mint some amount of Stable Coin for a given user.
@@ -452,15 +446,8 @@ pub fn update_stable_coin(
 /// * `user` - User receiving the stable coins,
 /// * `currency` - Symbol of the Stable Coin,
 /// * `amount` - Amount received by the user.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
-pub fn mint(
-    admin: &Pubkey,
-    user: &Pubkey,
-    currency: &str,
-    amount: f64,
-) -> Result<Instruction, ProgramError> {
+#[must_use]
+pub fn mint(admin: &Pubkey, user: &Pubkey, currency: &str, amount: f64) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let mint = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
@@ -469,7 +456,7 @@ pub fn mint(
     .0;
     let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
 
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin, true),
@@ -481,8 +468,9 @@ pub fn mint(
             AccountMeta::new_readonly(spl_token_2022::ID, false),
             AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::Mint(CoinsAmountArgs { amount }))?,
-    })
+        data: borsh::to_vec(&BangkStableInstruction::Mint(CoinsAmountArgs { amount }))
+            .unwrap_or_default(),
+    }
 }
 
 /// Burn some amount of Stable Coin from a given user.
@@ -491,10 +479,8 @@ pub fn mint(
 /// * `user` - User burning the stable coins,
 /// * `currency` - Symbol of the Stable Coin,
 /// * `amount` - Amount received by the user,
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
-pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Result<Instruction, ProgramError> {
+#[must_use]
+pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Instruction {
     let mint = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
         &crate::ID,
@@ -502,7 +488,7 @@ pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Result<Instruction, P
     .0;
     let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
 
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*user, true),
@@ -512,8 +498,9 @@ pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Result<Instruction, P
             AccountMeta::new_readonly(spl_token_2022::ID, false),
             AccountMeta::new_readonly(spl_associated_token_account::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::Burn(CoinsAmountArgs { amount }))?,
-    })
+        data: borsh::to_vec(&BangkStableInstruction::Burn(CoinsAmountArgs { amount }))
+            .unwrap_or_default(),
+    }
 }
 
 /// Closes an ATA, retrieving its rent.
@@ -522,14 +509,8 @@ pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Result<Instruction, P
 /// * `user` - User closing the ATA,
 /// * `currency` - Symbol of the Stable Coin for which the ATA will be closed,
 /// * `destination` - The account receiving the `SOLs` of the closing account.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
-pub fn close_stable_account(
-    user: &Pubkey,
-    currency: &str,
-    destination: &Pubkey,
-) -> Result<Instruction, ProgramError> {
+#[must_use]
+pub fn close_stable_account(user: &Pubkey, currency: &str, destination: &Pubkey) -> Instruction {
     let mint = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
         &crate::ID,
@@ -537,7 +518,7 @@ pub fn close_stable_account(
     .0;
     let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
 
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*user, true),
@@ -546,8 +527,8 @@ pub fn close_stable_account(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::CloseAccount)?,
-    })
+        data: borsh::to_vec(&BangkStableInstruction::CloseAccount).unwrap_or_default(),
+    }
 }
 
 /// Mint some amount of Stable Coin for a given user.
@@ -558,16 +539,14 @@ pub fn close_stable_account(
 /// * `admin3` - Key of the third signer of the instruction,
 /// * `currency` - Symbol of the Stable Coin,
 /// * `amount` - Amount received by the user.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn mint_to_exchange(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
     currency: &str,
     amount: f64,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let mint = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
@@ -580,7 +559,7 @@ pub fn mint_to_exchange(
     )
     .0;
 
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin1, true),
@@ -594,8 +573,9 @@ pub fn mint_to_exchange(
         ],
         data: borsh::to_vec(&BangkStableInstruction::MintExchange(CoinsAmountArgs {
             amount,
-        }))?,
-    })
+        }))
+        .unwrap_or_default(),
+    }
 }
 
 /// Transfer some amount of Stable Coins from one wallet to another.
@@ -605,15 +585,8 @@ pub fn mint_to_exchange(
 /// * `target` - The target wallet receiving the coins,
 /// * `currency` - The currency of the coins to transfer,
 /// * `amount` - The number of coins to transfer.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
-pub fn transfer(
-    source: &Pubkey,
-    target: &Pubkey,
-    currency: &str,
-    amount: f64,
-) -> Result<Instruction, ProgramError> {
+#[must_use]
+pub fn transfer(source: &Pubkey, target: &Pubkey, currency: &str, amount: f64) -> Instruction {
     let mint = Pubkey::find_program_address(
         &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
         &crate::ID,
@@ -624,7 +597,7 @@ pub fn transfer(
     let target_ata =
         get_associated_token_address_with_program_id(target, &mint, &spl_token_2022::id());
 
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*source, true),
@@ -636,8 +609,9 @@ pub fn transfer(
         ],
         data: borsh::to_vec(&BangkStableInstruction::Transfer(CoinsAmountArgs {
             amount,
-        }))?,
-    })
+        }))
+        .unwrap_or_default(),
+    }
 }
 
 /// Sets or updates the exchange rates between stable coins
@@ -645,13 +619,11 @@ pub fn transfer(
 /// # Parameters
 /// * `admin` - Bangk admin authorizing the operation (should always be the API),
 /// * `exchange_rates` - The new exchange rates to use.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn update_exchange_rates<S>(
     admin: &Pubkey,
     exchange_rates: HashMap<String, f64, S>,
-) -> Result<Instruction, ProgramError>
+) -> Instruction
 where
     S: BuildHasher,
     HashMap<String, f64>: From<HashMap<String, f64, S>>,
@@ -660,7 +632,7 @@ where
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let exchange_rates = exchange_rates.into();
 
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin, true),
@@ -670,8 +642,9 @@ where
         ],
         data: borsh::to_vec(&BangkStableInstruction::UpdateExchangeRates(
             UpdateExchangeRatesArgs { exchange_rates },
-        ))?,
-    })
+        ))
+        .unwrap_or_default(),
+    }
 }
 
 /// Transfer some amount of Stable Coins from one wallet to another.
@@ -682,16 +655,14 @@ where
 /// * `currency_source` - The source currency of the coins to exchange,
 /// * `currency_target` - The target currency of the coins to exchange,
 /// * `amount` - The number of coins to transfer.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn exchange(
     source: &Pubkey,
     target: &Pubkey,
     currency_source: &str,
     currency_target: &str,
     amount: f64,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let mint_source = Pubkey::find_program_address(
@@ -719,7 +690,7 @@ pub fn exchange(
     )
     .0;
 
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*source, true),
@@ -738,8 +709,9 @@ pub fn exchange(
             amount,
             source: currency_source.to_owned(),
             target: currency_target.to_owned(),
-        }))?,
-    })
+        }))
+        .unwrap_or_default(),
+    }
 }
 
 /// Add a `Pubkey` to the list authorized to perform freeze / thaw operations.
@@ -749,19 +721,17 @@ pub fn exchange(
 /// * `admin2` - Key of the second signer of the instruction,
 /// * `admin3` - Key of the third signer of the instruction,
 /// * `account` - Key of the account to authorized.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn add_freeze_authority(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
     account: &Pubkey,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (freeze_keys_pda, _freeze_bump) =
         MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin1, true),
@@ -773,8 +743,9 @@ pub fn add_freeze_authority(
         ],
         data: borsh::to_vec(&BangkStableInstruction::AddFreezeAuthority(AccountArgs {
             account: *account,
-        }))?,
-    })
+        }))
+        .unwrap_or_default(),
+    }
 }
 
 /// Removes a `Pubkey` from the list authorized to perform freeze / thaw operations.
@@ -784,19 +755,17 @@ pub fn add_freeze_authority(
 /// * `admin2` - Key of the second signer of the instruction,
 /// * `admin3` - Key of the third signer of the instruction,
 /// * `account` - Key of the account to revoke.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn remove_freeze_authority(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
     account: &Pubkey,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (freeze_keys_pda, _freeze_bump) =
         MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin1, true),
@@ -808,8 +777,9 @@ pub fn remove_freeze_authority(
         ],
         data: borsh::to_vec(&BangkStableInstruction::RemoveFreezeAuthority(
             AccountArgs { account: *account },
-        ))?,
-    })
+        ))
+        .unwrap_or_default(),
+    }
 }
 
 /// Freezes an ATA
@@ -820,19 +790,17 @@ pub fn remove_freeze_authority(
 /// * `mint` - Mint of the ATA to freeze,
 /// * `user` - User owning the account,
 /// * `account` - Account to freeze.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn freeze_account(
     admin: &Pubkey,
     freeze: &Pubkey,
     mint: &Pubkey,
     account: &Pubkey,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (freeze_keys_pda, _freeze_bump) =
         MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin, true),
@@ -844,8 +812,8 @@ pub fn freeze_account(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::FreezeAccount)?,
-    })
+        data: borsh::to_vec(&BangkStableInstruction::FreezeAccount).unwrap_or_default(),
+    }
 }
 
 /// Thaws an ATA
@@ -857,20 +825,18 @@ pub fn freeze_account(
 /// * `mint` - Mint of the ATA to thaw,
 /// * `user` - User owning the account,
 /// * `account` - Account to thaw.
-///
-/// # Errors
-/// If instruction's data could not be serialized (so…never?)
+#[must_use]
 pub fn thaw_account(
     admin: &Pubkey,
     freeze1: &Pubkey,
     freeze2: &Pubkey,
     mint: &Pubkey,
     account: &Pubkey,
-) -> Result<Instruction, ProgramError> {
+) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let (freeze_keys_pda, _freeze_bump) =
         MultiSigPda::get_address(MultiSigType::Freeze, &crate::ID);
-    Ok(Instruction {
+    Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin, true),
@@ -883,6 +849,6 @@ pub fn thaw_account(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::ThawAccount)?,
-    })
+        data: borsh::to_vec(&BangkStableInstruction::ThawAccount).unwrap_or_default(),
+    }
 }
