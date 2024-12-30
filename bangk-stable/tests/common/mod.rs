@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:37:18
+// Last modified: Monday 30 December 2024 @ 16:55:32
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -18,8 +18,8 @@ use core::result;
 use bangk_onchain_common::Error;
 use bangk_stable::{
     add_freeze_authority, burn, close_stable_account, create_stable_coin, exchange, freeze_account,
-    initialize, mint, mint_to_exchange, process_instruction, remove_freeze_authority, thaw_account,
-    transfer, EXCHANGE_WALLET_SEED, STABLE_MINT_SEED,
+    get_stable_coin_mint, initialize, mint, mint_to_exchange, process_instruction,
+    remove_freeze_authority, thaw_account, transfer, EXCHANGE_WALLET_SEED, STABLE_MINT_SEED,
 };
 use solana_program_test::processor;
 use solana_sdk::{pubkey::Pubkey, signer::Signer};
@@ -38,19 +38,6 @@ pub fn to_tokens(amount: f64, decimals: u8) -> u64 {
     res as u64
 }
 
-/// Get the address of the mint for a given currency
-///
-/// # Parameters
-/// * `currency_symbol` - The stable coin for which to get the address of the mint
-#[must_use]
-pub fn get_mint(currency_symbol: &str) -> Pubkey {
-    Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency_symbol.as_bytes()],
-        &bangk_stable::ID,
-    )
-    .0
-}
-
 /// Get the address of the Exchange PDA for a given currency
 ///
 /// # Parameters
@@ -60,7 +47,7 @@ pub fn get_exchange(currency_symbol: &str) -> Pubkey {
     Pubkey::find_program_address(
         &[
             EXCHANGE_WALLET_SEED.as_bytes(),
-            &get_mint(currency_symbol).to_bytes(),
+            &get_stable_coin_mint(currency_symbol).to_bytes(),
         ],
         &bangk_stable::ID,
     )
@@ -76,7 +63,7 @@ pub fn get_exchange(currency_symbol: &str) -> Pubkey {
 #[must_use]
 pub fn get_ata(env: &Environment, user: &str, currency_symbol: &str) -> Pubkey {
     let user = env.wallets[user].pubkey();
-    let mint = get_mint(currency_symbol);
+    let mint = get_stable_coin_mint(currency_symbol);
     get_associated_token_address_with_program_id(&user, &mint, &spl_token_2022::id())
 }
 
@@ -190,7 +177,7 @@ pub async fn mint_coins(
 ) -> Result<()> {
     let admin1 = env.wallets["Admin 1"].pubkey();
     let target = env.wallets[target].pubkey();
-    let instruction = mint(&admin1, &target, currency, amount);
+    let instruction = mint(&admin1, &target, &get_stable_coin_mint(currency), amount);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1"]).await
 }
@@ -208,7 +195,13 @@ pub async fn mint_exchange_coins(env: &mut Environment, currency: &str, amount: 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin3 = env.wallets["Admin 3"].pubkey();
-    let instruction = mint_to_exchange(&admin1, &admin2, &admin3, currency, amount);
+    let instruction = mint_to_exchange(
+        &admin1,
+        &admin2,
+        &admin3,
+        &get_stable_coin_mint(currency),
+        amount,
+    );
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
         .await
@@ -232,7 +225,7 @@ pub async fn burn_coins(
     amount: f64,
 ) -> Result<()> {
     let user_key = env.wallets[user].pubkey();
-    let instruction = burn(&user_key, currency, amount);
+    let instruction = burn(&user_key, &get_stable_coin_mint(currency), amount);
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &[user]).await
 }
@@ -249,7 +242,8 @@ pub async fn burn_coins(
 pub async fn close_account(env: &mut Environment, currency: &str, user: &str) -> Result<()> {
     let admin1 = env.wallets["Admin 1"].pubkey();
     let user_key = env.wallets[user].pubkey();
-    let instruction = close_stable_account(&user_key, currency, &admin1);
+    let ata = get_ata(env, user, currency);
+    let instruction = close_stable_account(&user_key, &ata, &admin1);
 
     env.execute_transaction(&[instruction], &[user]).await
 }
@@ -274,7 +268,12 @@ pub async fn transfer_coins(
 ) -> Result<()> {
     let source_key = env.wallets[source].pubkey();
     let target_key = env.wallets[target].pubkey();
-    let instruction = transfer(&source_key, &target_key, currency, amount);
+    let instruction = transfer(
+        &source_key,
+        &target_key,
+        &get_stable_coin_mint(currency),
+        amount,
+    );
     // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &[source]).await
 }
@@ -304,8 +303,8 @@ pub async fn exchange_coins(
     let instruction = exchange(
         &source_key,
         &target_key,
-        source_currency,
-        target_currency,
+        &get_stable_coin_mint(source_currency),
+        &get_stable_coin_mint(target_currency),
         amount,
     );
     // println!("Instruction: {instruction:#?}");
@@ -362,7 +361,7 @@ pub async fn remove_freeze_key(env: &mut Environment, user: &str) -> Result<()> 
 pub async fn freeze_ata(env: &mut Environment, user: &str, currency_symbol: &str) -> Result<()> {
     let admin1 = env.wallets["Admin 1"].pubkey();
     let freeze = env.wallets["Freeze 1"].pubkey();
-    let mint = get_mint(currency_symbol);
+    let mint = get_stable_coin_mint(currency_symbol);
     let ata = get_ata(env, user, currency_symbol);
     let instruction = freeze_account(&admin1, &freeze, &mint, &ata);
     // println!("Instruction: {instruction:#?}");
@@ -383,7 +382,7 @@ pub async fn thaw_ata(env: &mut Environment, user: &str, currency_symbol: &str) 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let freeze1 = env.wallets["Freeze 1"].pubkey();
     let freeze2 = env.wallets["Freeze 2"].pubkey();
-    let mint = get_mint(currency_symbol);
+    let mint = get_stable_coin_mint(currency_symbol);
     let ata = get_ata(env, user, currency_symbol);
     let instruction = thaw_account(&admin1, &freeze1, &freeze2, &mint, &ata);
     // println!("Instruction: {instruction:#?}");

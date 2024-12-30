@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 23 December 2024 @ 17:27:41
+// Last modified: Monday 30 December 2024 @ 16:52:52
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -18,6 +18,8 @@ use bangk_onchain_common::{
 use borsh::BorshDeserialize;
 use solana_program::pubkey::Pubkey;
 
+use crate::support::get_stable_coin_mint;
+
 /// Configuration PDA of the ICO program.
 #[pda(kind = PdaType::ProgramConfiguration, seed = "Configuration")]
 pub struct ConfigurationPda {
@@ -28,7 +30,7 @@ pub struct ConfigurationPda {
     /// Amount of invested tokens
     pub amount_invested: u64,
     /// Exchange rates from euro (or EUB) to foreign currencies
-    pub exchange_rates: HashMap<String, f64>,
+    pub exchange_rates: HashMap<Pubkey, f64>,
 }
 
 impl<'a> ConfigurationPda<'a> {
@@ -54,8 +56,9 @@ impl<'a> ConfigurationPda<'a> {
     ///
     /// # Errors
     /// If the exchange rate could not be computed (missing data)
-    pub fn get_exchange_rate(&self, source: &str, target: &str) -> Result<f64, Error> {
-        if source == "EUB" {
+    pub fn get_exchange_rate(&self, source: &Pubkey, target: &Pubkey) -> Result<f64, Error> {
+        let eub_mint = get_stable_coin_mint("EUB");
+        if *source == eub_mint {
             let rate = self
                 .exchange_rates
                 .get(target)
@@ -63,7 +66,7 @@ impl<'a> ConfigurationPda<'a> {
             return Ok(*rate);
         }
 
-        if target == "EUB" {
+        if *target == eub_mint {
             let rate = self
                 .exchange_rates
                 .get(target)

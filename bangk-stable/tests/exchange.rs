@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:20:58
+// Last modified: Monday 30 December 2024 @ 16:58:09
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -21,11 +21,11 @@ type Result<T> = result::Result<T, Error>;
 use std::{collections::HashMap, error, result};
 
 use bangk_onchain_common::Error as BangkError;
-use bangk_stable::{update_exchange_rates, ConfigurationPda};
+use bangk_stable::{get_stable_coin_mint, update_exchange_rates, ConfigurationPda};
 use common::{
     create_coin, exchange_coins, get_ata, get_exchange, mint_coins, mint_exchange_coins, to_tokens,
 };
-use solana_sdk::signer::Signer as _;
+use solana_sdk::{pubkey::Pubkey, signer::Signer as _};
 use tests_utilities::onchain::Environment;
 pub mod common;
 
@@ -46,14 +46,18 @@ const EXCHANGE_TARGET_AMOUNT: f64 = 100_000.0;
 const USER_SOURCE: &str = "User 1";
 const USER_TARGET: &str = "User 2";
 
+fn get_default_rates() -> HashMap<Pubkey, f64> {
+    HashMap::from([
+        (get_stable_coin_mint(SOURCE_SYMBOL), EXCHANGE_SOURCE_EUB),
+        (get_stable_coin_mint(TARGET_SYMBOL), EXCHANGE_TARGET_EUB),
+    ])
+}
+
 async fn setup() -> Result<Environment> {
     let mut env = common::init_default().await?;
 
     // Set exchange rates
-    let rates = HashMap::from([
-        (SOURCE_SYMBOL.to_owned(), EXCHANGE_SOURCE_EUB),
-        (TARGET_SYMBOL.to_owned(), EXCHANGE_TARGET_EUB),
-    ]);
+    let rates = get_default_rates();
 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let instruction = update_exchange_rates(&admin1, rates);
@@ -99,10 +103,7 @@ async fn set_exchange_rates() -> Result<()> {
     assert!(config_before.exchange_rates.is_empty());
 
     // Set exchange rates
-    let rates = HashMap::from([
-        (SOURCE_SYMBOL.to_owned(), EXCHANGE_SOURCE_EUB),
-        (TARGET_SYMBOL.to_owned(), EXCHANGE_TARGET_EUB),
-    ]);
+    let rates = get_default_rates();
 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let instruction = update_exchange_rates(&admin1, rates);
@@ -117,11 +118,17 @@ async fn set_exchange_rates() -> Result<()> {
 
     assert_eq!(config_after.exchange_rates.len(), 2);
     assert_eq!(
-        config_after.exchange_rates.get(SOURCE_SYMBOL).copied(),
+        config_after
+            .exchange_rates
+            .get(&get_stable_coin_mint(SOURCE_SYMBOL))
+            .copied(),
         Some(EXCHANGE_SOURCE_EUB)
     );
     assert_eq!(
-        config_after.exchange_rates.get(TARGET_SYMBOL).copied(),
+        config_after
+            .exchange_rates
+            .get(&get_stable_coin_mint(TARGET_SYMBOL))
+            .copied(),
         Some(EXCHANGE_TARGET_EUB)
     );
 
@@ -204,10 +211,7 @@ async fn not_enough_exchange_funds() -> Result<()> {
     let mut env = common::init_default().await?;
 
     // Set exchange rates
-    let rates = HashMap::from([
-        (SOURCE_SYMBOL.to_owned(), EXCHANGE_SOURCE_EUB),
-        (TARGET_SYMBOL.to_owned(), EXCHANGE_TARGET_EUB),
-    ]);
+    let rates = get_default_rates();
 
     let admin1 = env.wallets["Admin 1"].pubkey();
     let instruction1 = update_exchange_rates(&admin1, rates);

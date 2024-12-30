@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:15:12
+// Last modified: Monday 30 December 2024 @ 17:00:17
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -21,6 +21,7 @@ use solana_program::{
 };
 use spl_associated_token_account::get_associated_token_address_with_program_id;
 
+use crate::support::get_stable_coin_exchange;
 use crate::{ConfigurationPda, EXCHANGE_WALLET_SEED, STABLE_MINT_SEED};
 
 /// Arguments for the program's initialization.
@@ -86,18 +87,7 @@ pub struct CoinsAmountArgs {
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
 pub struct UpdateExchangeRatesArgs {
     /// Map of EUB -> foreign currency rates
-    pub exchange_rates: HashMap<String, f64>,
-}
-
-/// Arguments needed to exchange two Stable Coins.
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
-pub struct ExchangeArgs {
-    /// Source currency
-    pub source: String,
-    /// Target currency
-    pub target: String,
-    /// Number of coins to be received
-    pub amount: f64,
+    pub exchange_rates: HashMap<Pubkey, f64>,
 }
 
 /// Simple `Pubkey` argument
@@ -180,7 +170,7 @@ pub enum BangkStableInstruction {
     #[account(6, name="ata_program", desc="Associated Token Account Program")]
     Burn(CoinsAmountArgs),
 
-    /// Close a user’s ATA
+    /// Close a user's ATA
     #[account(0, signer, writable, name="signer", desc="Signer and fee payer for the instruction (owner of the account)")]
     #[account(1, writable, name="destination", desc="The account to which the closing account will send its SOL")]
     #[account(2, writable, name="ata", desc="User ATA where the coins are stored")]
@@ -216,7 +206,7 @@ pub enum BangkStableInstruction {
     #[account(8, writable, name="target_ata", desc="Target ATA receiving the exchanged tokkens")]
     #[account(9, name="system_program", desc="System Program")]
     #[account(10, name="token_program", desc="SPL Token 2022 Program")]
-    Exchange(ExchangeArgs),
+    Exchange(CoinsAmountArgs),
 
     /// Add a Pubkey to the accounts authorized to freeze / thaw accounts
     #[account(0, signer, writable, name="admin1", desc="First signer and fee payer for the instruction")]
@@ -417,7 +407,7 @@ pub fn update_stable_coin(
     admin2: &Pubkey,
     admin3: &Pubkey,
     mint: &Pubkey,
-    currency: Option<String>,
+    name: Option<String>,
     uri: Option<String>,
 ) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
@@ -433,7 +423,10 @@ pub fn update_stable_coin(
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
         data: borsh::to_vec(&BangkStableInstruction::UpdateCoinMetadata(
-            UpdateCoinMetadataArgs { currency, uri },
+            UpdateCoinMetadataArgs {
+                currency: name,
+                uri,
+            },
         ))
         .unwrap_or_default(),
     }
@@ -444,24 +437,19 @@ pub fn update_stable_coin(
 /// # Parameters
 /// * `admin` - Bangk admin authorizing the operation (should always be the API),
 /// * `user` - User receiving the stable coins,
-/// * `currency` - Symbol of the Stable Coin,
+/// * `mint` - The mint of the currency to mint,
 /// * `amount` - Amount received by the user.
 #[must_use]
-pub fn mint(admin: &Pubkey, user: &Pubkey, currency: &str, amount: f64) -> Instruction {
+pub fn mint(admin: &Pubkey, user: &Pubkey, mint: &Pubkey, amount: f64) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let mint = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
-        &crate::ID,
-    )
-    .0;
-    let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
+    let ata = get_associated_token_address_with_program_id(user, mint, &spl_token_2022::id());
 
     Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*admin, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new(mint, false),
+            AccountMeta::new(*mint, false),
             AccountMeta::new_readonly(*user, false),
             AccountMeta::new(ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
@@ -477,22 +465,17 @@ pub fn mint(admin: &Pubkey, user: &Pubkey, currency: &str, amount: f64) -> Instr
 ///
 /// # Parameters
 /// * `user` - User burning the stable coins,
-/// * `currency` - Symbol of the Stable Coin,
+/// * `mint` - The mint of the currency to burn,
 /// * `amount` - Amount received by the user,
 #[must_use]
-pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Instruction {
-    let mint = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
-        &crate::ID,
-    )
-    .0;
-    let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
+pub fn burn(user: &Pubkey, mint: &Pubkey, amount: f64) -> Instruction {
+    let ata = get_associated_token_address_with_program_id(user, mint, &spl_token_2022::id());
 
     Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*user, true),
-            AccountMeta::new(mint, false),
+            AccountMeta::new(*mint, false),
             AccountMeta::new(ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
@@ -507,23 +490,17 @@ pub fn burn(user: &Pubkey, currency: &str, amount: f64) -> Instruction {
 ///
 /// # Parameters
 /// * `user` - User closing the ATA,
-/// * `currency` - Symbol of the Stable Coin for which the ATA will be closed,
+/// * `account` - The ATA to close,
+/// * `mint` - The mint of the currency matching the ATA to close,
 /// * `destination` - The account receiving the `SOLs` of the closing account.
 #[must_use]
-pub fn close_stable_account(user: &Pubkey, currency: &str, destination: &Pubkey) -> Instruction {
-    let mint = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
-        &crate::ID,
-    )
-    .0;
-    let ata = get_associated_token_address_with_program_id(user, &mint, &spl_token_2022::id());
-
+pub fn close_stable_account(user: &Pubkey, ata: &Pubkey, destination: &Pubkey) -> Instruction {
     Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*user, true),
             AccountMeta::new(*destination, false),
-            AccountMeta::new(ata, false),
+            AccountMeta::new(*ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
@@ -537,27 +514,18 @@ pub fn close_stable_account(user: &Pubkey, currency: &str, destination: &Pubkey)
 /// * `admin1` - Key of the payer and first signer of the instruction,
 /// * `admin2` - Key of the second signer of the instruction,
 /// * `admin3` - Key of the third signer of the instruction,
-/// * `currency` - Symbol of the Stable Coin,
+/// * `mint` - The mint of the currency to mint,
 /// * `amount` - Amount received by the user.
 #[must_use]
 pub fn mint_to_exchange(
     admin1: &Pubkey,
     admin2: &Pubkey,
     admin3: &Pubkey,
-    currency: &str,
+    mint: &Pubkey,
     amount: f64,
 ) -> Instruction {
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let mint = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
-        &crate::ID,
-    )
-    .0;
-    let pda_exchange = Pubkey::find_program_address(
-        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint.to_bytes()],
-        &crate::ID,
-    )
-    .0;
+    let pda_exchange = get_stable_coin_exchange(mint);
 
     Instruction {
         program_id: crate::ID,
@@ -566,7 +534,7 @@ pub fn mint_to_exchange(
             AccountMeta::new(*admin2, true),
             AccountMeta::new(*admin3, true),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new(mint, false),
+            AccountMeta::new(*mint, false),
             AccountMeta::new(pda_exchange, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
@@ -583,25 +551,20 @@ pub fn mint_to_exchange(
 /// # Parameters
 /// * `source` - The source wallet sending the coins,
 /// * `target` - The target wallet receiving the coins,
-/// * `currency` - The currency of the coins to transfer,
+/// * `mint` - The mint of the currency to transfer,
 /// * `amount` - The number of coins to transfer.
 #[must_use]
-pub fn transfer(source: &Pubkey, target: &Pubkey, currency: &str, amount: f64) -> Instruction {
-    let mint = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency.as_bytes()],
-        &crate::ID,
-    )
-    .0;
+pub fn transfer(source: &Pubkey, target: &Pubkey, mint: &Pubkey, amount: f64) -> Instruction {
     let source_ata =
-        get_associated_token_address_with_program_id(source, &mint, &spl_token_2022::id());
+        get_associated_token_address_with_program_id(source, mint, &spl_token_2022::id());
     let target_ata =
-        get_associated_token_address_with_program_id(target, &mint, &spl_token_2022::id());
+        get_associated_token_address_with_program_id(target, mint, &spl_token_2022::id());
 
     Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*source, true),
-            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new_readonly(*mint, false),
             AccountMeta::new(source_ata, false),
             AccountMeta::new(target_ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
@@ -622,11 +585,11 @@ pub fn transfer(source: &Pubkey, target: &Pubkey, currency: &str, amount: f64) -
 #[must_use]
 pub fn update_exchange_rates<S>(
     admin: &Pubkey,
-    exchange_rates: HashMap<String, f64, S>,
+    exchange_rates: HashMap<Pubkey, f64, S>,
 ) -> Instruction
 where
     S: BuildHasher,
-    HashMap<String, f64>: From<HashMap<String, f64, S>>,
+    HashMap<Pubkey, f64>: From<HashMap<Pubkey, f64, S>>,
 {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
@@ -652,43 +615,25 @@ where
 /// # Parameters
 /// * `source` - The source wallet sending the coins,
 /// * `target` - The target wallet receiving the coins,
-/// * `currency_source` - The source currency of the coins to exchange,
-/// * `currency_target` - The target currency of the coins to exchange,
+/// * `mint_source` - The mint of the source currency to exchange,
+/// * `mint_target` - The mint of the target currency to exchange,
 /// * `amount` - The number of coins to transfer.
 #[must_use]
 pub fn exchange(
     source: &Pubkey,
     target: &Pubkey,
-    currency_source: &str,
-    currency_target: &str,
+    mint_source: &Pubkey,
+    mint_target: &Pubkey,
     amount: f64,
 ) -> Instruction {
     let (config_pda, _config_bump) = ConfigurationPda::get_address(&crate::ID);
     let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
-    let mint_source = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency_source.as_bytes()],
-        &crate::ID,
-    )
-    .0;
-    let mint_target = Pubkey::find_program_address(
-        &[STABLE_MINT_SEED.as_bytes(), currency_target.as_bytes()],
-        &crate::ID,
-    )
-    .0;
     let source_ata =
-        get_associated_token_address_with_program_id(source, &mint_source, &spl_token_2022::id());
+        get_associated_token_address_with_program_id(source, mint_source, &spl_token_2022::id());
     let target_ata =
-        get_associated_token_address_with_program_id(target, &mint_target, &spl_token_2022::id());
-    let exchange_source = Pubkey::find_program_address(
-        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_source.to_bytes()],
-        &crate::ID,
-    )
-    .0;
-    let exchange_target = Pubkey::find_program_address(
-        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint_target.to_bytes()],
-        &crate::ID,
-    )
-    .0;
+        get_associated_token_address_with_program_id(target, mint_target, &spl_token_2022::id());
+    let exchange_source = get_stable_coin_exchange(mint_source);
+    let exchange_target = get_stable_coin_exchange(mint_target);
 
     Instruction {
         program_id: crate::ID,
@@ -696,8 +641,8 @@ pub fn exchange(
             AccountMeta::new(*source, true),
             AccountMeta::new_readonly(config_pda, false),
             AccountMeta::new_readonly(admin_keys_pda, false),
-            AccountMeta::new_readonly(mint_source, false),
-            AccountMeta::new_readonly(mint_target, false),
+            AccountMeta::new_readonly(*mint_source, false),
+            AccountMeta::new_readonly(*mint_target, false),
             AccountMeta::new(exchange_source, false),
             AccountMeta::new(exchange_target, false),
             AccountMeta::new(source_ata, false),
@@ -705,10 +650,8 @@ pub fn exchange(
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(spl_token_2022::ID, false),
         ],
-        data: borsh::to_vec(&BangkStableInstruction::Exchange(ExchangeArgs {
+        data: borsh::to_vec(&BangkStableInstruction::Exchange(CoinsAmountArgs {
             amount,
-            source: currency_source.to_owned(),
-            target: currency_target.to_owned(),
         }))
         .unwrap_or_default(),
     }

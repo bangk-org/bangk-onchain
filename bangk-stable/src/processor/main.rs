@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 15:57:55
+// Last modified: Monday 30 December 2024 @ 16:53:44
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -57,7 +57,7 @@ pub fn process_instruction(
             update_exchange_rates(program_id, accounts, &args)
         }
         BangkStableInstruction::Transfer(args) => transfer(program_id, accounts, args),
-        BangkStableInstruction::Exchange(args) => exchange(program_id, accounts, &args),
+        BangkStableInstruction::Exchange(args) => exchange(program_id, accounts, args),
         BangkStableInstruction::Burn(args) => burn_coin(program_id, accounts, args),
         BangkStableInstruction::AddFreezeAuthority(args) => {
             add_freeze_authority(program_id, accounts, &args)

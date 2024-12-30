@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:34:00
+// Last modified: Monday 30 December 2024 @ 16:59:03
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -22,9 +22,9 @@ use std::{error, result};
 
 pub mod common;
 use bangk_onchain_common::Error as BangkError;
+use bangk_stable::get_stable_coin_mint;
 use common::{
-    burn_coins, close_account, get_ata, get_exchange, get_mint, mint_coins, mint_exchange_coins,
-    to_tokens,
+    burn_coins, close_account, get_ata, get_exchange, mint_coins, mint_exchange_coins, to_tokens,
 };
 use solana_program_test::tokio;
 
@@ -74,7 +74,7 @@ async fn mint_operation_existing_ata() -> Result<()> {
 async fn mint_to_exchange() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
 
-    let mint_address = get_mint(SYMBOL);
+    let mint_address = get_stable_coin_mint(SYMBOL);
     let pda_exchange = get_exchange(SYMBOL);
     println!("{mint_address}");
     mint_exchange_coins(&mut env, SYMBOL, AMOUNT).await?;

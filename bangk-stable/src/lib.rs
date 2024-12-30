@@ -3,7 +3,7 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 18:58:55
+// Last modified: Monday 30 December 2024 @ 16:54:18
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -26,7 +26,9 @@ pub use instruction::*;
 /// Handles the dispatch of the processing operations (only used in tests).
 pub use processor::{process_instruction, INIT_KEY};
 /// Support functions
-pub use support::{compute_token_amount, get_decimals};
+pub use support::{
+    compute_token_amount, get_decimals, get_stable_coin_exchange, get_stable_coin_mint,
+};
 
 // Set the program's ID.
 solana_program::declare_id!("BKPrg5rXBCXMEJPnL2K8DaFEcua1e1SkeLUGqSQhkj6U");

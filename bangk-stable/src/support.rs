@@ -3,17 +3,45 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 18:55:36
+// Last modified: Monday 30 December 2024 @ 16:49:46
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
 
 use bangk_onchain_common::Error;
-use solana_program::{account_info::AccountInfo, program_error::ProgramError};
+use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 use spl_token_2022::{
     extension::StateWithExtensions,
     state::{Account, Mint},
 };
+
+use crate::{EXCHANGE_WALLET_SEED, STABLE_MINT_SEED};
+
+/// Get the address of the mint for a given currency
+///
+/// # Parameters
+/// * `currency_symbol` - The stable coin for which to get the address of the mint
+#[must_use]
+pub fn get_stable_coin_mint(currency_symbol: &str) -> Pubkey {
+    Pubkey::find_program_address(
+        &[STABLE_MINT_SEED.as_bytes(), currency_symbol.as_bytes()],
+        &crate::ID,
+    )
+    .0
+}
+
+/// Get the address of the exchange account for a given currency
+///
+/// # Parameters
+/// * `currency_symbol` - The stable coin for which to get the address of the mint
+#[must_use]
+pub fn get_stable_coin_exchange(mint: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(
+        &[EXCHANGE_WALLET_SEED.as_bytes(), &mint.to_bytes()],
+        &crate::ID,
+    )
+    .0
+}
 
 /// Get the number of decimals used by a given stable coin
 ///

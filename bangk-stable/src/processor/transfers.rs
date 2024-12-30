@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 18:55:36
+// Last modified: Monday 30 December 2024 @ 16:53:40
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -28,7 +28,7 @@ use spl_token_2022::instruction::transfer_checked;
 use crate::{
     compute_token_amount, get_decimals,
     support::{get_token_amount, is_account_frozen},
-    CoinsAmountArgs, ConfigurationPda, ExchangeArgs, UpdateExchangeRatesArgs,
+    CoinsAmountArgs, ConfigurationPda, UpdateExchangeRatesArgs,
 };
 
 struct UpdateExchangeRatesAccounts<'a> {
@@ -183,7 +183,7 @@ impl<'a> ExchangeAccounts<'a> {
 pub fn exchange(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    args: &ExchangeArgs,
+    args: CoinsAmountArgs,
 ) -> ProgramResult {
     let ctx = ExchangeAccounts::new(accounts)?;
     msg!("Bangk: Exchanging Stable Coins");
@@ -220,7 +220,7 @@ pub fn exchange(
 
     ConfigurationPda::check_address(program_id, &ctx.config)?;
     let config = ConfigurationPda::from_account(&ctx.config)?;
-    let rate = config.get_exchange_rate(&args.source, &args.target)?;
+    let rate = config.get_exchange_rate(ctx.source_mint.key, ctx.target_mint.key)?;
     let amount = compute_token_amount(&ctx.target_mint, args.amount)?;
     let exchanged_amount = 1.0_f64 / rate * args.amount;
     #[allow(clippy::cast_possible_truncation)]

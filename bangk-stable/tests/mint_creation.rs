@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:25:32
+// Last modified: Monday 30 December 2024 @ 16:58:36
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -25,8 +25,8 @@ use bangk_onchain_common::{
     security::{MultiSigPda, MultiSigType},
     Error as BangkError,
 };
-use bangk_stable::{create_stable_coin, update_stable_coin};
-use common::{create_coin, get_exchange, get_mint};
+use bangk_stable::{create_stable_coin, get_stable_coin_mint, update_stable_coin};
+use common::{create_coin, get_exchange};
 use solana_program_test::tokio;
 use solana_sdk::signer::Signer;
 
@@ -39,7 +39,7 @@ const DECIMALS: u8 = 2;
 async fn default() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
 
-    let mint_address = get_mint(SYMBOL);
+    let mint_address = get_stable_coin_mint(SYMBOL);
     let pda_exchange = get_exchange(SYMBOL);
     println!("{mint_address}");
     let (admin_pda, _) = MultiSigPda::get_address(MultiSigType::Admin, &env.program_id);
@@ -118,7 +118,7 @@ async fn update_metadata() -> Result<()> {
     let admin3 = env.wallets["Admin 3"].pubkey();
     let new_name = "USB";
     let new_uri = "new_uri";
-    let mint = get_mint(SYMBOL);
+    let mint = get_stable_coin_mint(SYMBOL);
 
     let instruction = update_stable_coin(
         &admin1,
@@ -150,7 +150,7 @@ async fn update_metadata_nodata() -> Result<()> {
     let admin1 = env.wallets["Admin 1"].pubkey();
     let admin2 = env.wallets["Admin 2"].pubkey();
     let admin3 = env.wallets["Admin 3"].pubkey();
-    let mint = get_mint(SYMBOL);
+    let mint = get_stable_coin_mint(SYMBOL);
     let instruction = update_stable_coin(&admin1, &admin2, &admin3, &mint, None, None);
     // println!("Instruction: {instruction:#?}");
     let res = env
