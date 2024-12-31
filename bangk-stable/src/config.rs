@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:52:52
+// Last modified: Tuesday 31 December 2024 @ 15:58:21
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -69,7 +69,7 @@ impl<'a> ConfigurationPda<'a> {
         if *target == eub_mint {
             let rate = self
                 .exchange_rates
-                .get(target)
+                .get(source)
                 .ok_or(Error::InvalidExchangeRate)?;
             let rate = 1.0_f64 / rate;
             return Ok(rate);

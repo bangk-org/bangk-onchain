@@ -29,12 +29,12 @@ fn get_seed(seed: &Expr) -> TokenStream {
     match seed {
         Expr::Lit(ExprLit { lit: value, .. }) => quote! { Seed::from(#value) }.into(),
         Expr::Field(field) => quote! { Seed::from(self.#field) }.into(),
-        Expr::Path(ExprPath { path, .. }) => {
-            if path.segments.len() > 1 {
-                panic!("seed should either be a literal, an ident or a field");
-            }
-            quote! { Seed::from(self.#path) }.into()
-        }
+        // Expr::Path(ExprPath { path, .. }) => {
+        //     if path.segments.len() > 1 {
+        //         panic!("seed should either be a literal, an ident or a field");
+        //     }
+        //     quote! { Seed::from(self.#path) }.into()
+        // }
         _ => panic!("seed should be either literal, an ident or a field"),
     }
 }

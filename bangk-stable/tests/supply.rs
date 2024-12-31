@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:59:03
+// Last modified: Tuesday 31 December 2024 @ 16:19:35
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -24,7 +24,8 @@ pub mod common;
 use bangk_onchain_common::Error as BangkError;
 use bangk_stable::get_stable_coin_mint;
 use common::{
-    burn_coins, close_account, get_ata, get_exchange, mint_coins, mint_exchange_coins, to_tokens,
+    burn_coins, close_account, create_coin, get_ata, get_exchange, mint_coins, mint_exchange_coins,
+    to_tokens,
 };
 use solana_program_test::tokio;
 
@@ -48,6 +49,31 @@ async fn mint_operation() -> Result<()> {
         .ok_or("could not retrieve the token amount")?;
     let expected = AMOUNT as u64 * 10_u64.pow(u32::from(DECIMALS));
     assert_eq!(expected, amount);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn mint_burn_checks() -> Result<()> {
+    let mut env = common::init_default().await?;
+    let res1 = mint_coins(&mut env, SYMBOL, USER, AMOUNT).await;
+    assert_eq!(res1, Err(BangkError::InvalidPdaAddress));
+    let res2 = mint_exchange_coins(&mut env, SYMBOL, AMOUNT).await;
+    assert_eq!(res2, Err(BangkError::InvalidPdaAddress));
+    let res3 = burn_coins(&mut env, SYMBOL, USER, AMOUNT).await;
+    assert_eq!(res3, Err(BangkError::InvalidPdaAddress));
+
+    create_coin(&mut env, CURRENCY, SYMBOL, URI, DECIMALS).await?;
+    mint_coins(&mut env, SYMBOL, USER, AMOUNT).await?;
+
+    let res4 = mint_coins(&mut env, SYMBOL, USER, -1.0).await;
+    assert_eq!(res4, Err(BangkError::InvalidAmount));
+    let res5 = mint_exchange_coins(&mut env, SYMBOL, -1.0).await;
+    assert_eq!(res5, Err(BangkError::InvalidAmount));
+    let res6 = burn_coins(&mut env, SYMBOL, USER, -1.0).await;
+    assert_eq!(res6, Err(BangkError::InvalidAmount));
+    let res7 = burn_coins(&mut env, SYMBOL, USER, AMOUNT * 2.0).await;
+    assert_eq!(res7, Err(BangkError::InvalidAmount));
 
     Ok(())
 }
@@ -128,9 +154,9 @@ async fn close_non_empty_account() -> Result<()> {
     mint_coins(&mut env, SYMBOL, USER, AMOUNT).await?;
     let res = close_account(&mut env, SYMBOL, USER).await;
 
-    assert!(
-        res.as_ref()
-            .is_err_and(|err| *err == BangkError::InvalidAtaData),
+    assert_eq!(
+        res,
+        Err(BangkError::InvalidAtaData),
         "actual result: {res:#?}"
     );
 

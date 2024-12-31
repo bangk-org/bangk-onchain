@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:19:37
+// Last modified: Tuesday 31 December 2024 @ 16:27:44
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -80,8 +80,26 @@ async fn transfer_to_nonexisting_ata() -> Result<()> {
 
     let res = transfer_coins(&mut env, SYMBOL, "User 1", "User 2", AMOUNT).await;
 
-    assert!(
-        res.is_err_and(|err| err == BangkError::ATADoesNotExist),
+    assert_eq!(
+        res,
+        Err(BangkError::ATADoesNotExist),
+        "there was an unexpected error in the instruction"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn transfer_invalid_amount() -> Result<()> {
+    let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
+
+    mint_coins(&mut env, SYMBOL, "User 1", 10.0).await?;
+    mint_coins(&mut env, SYMBOL, "User 2", 0.0).await?;
+    let res = transfer_coins(&mut env, SYMBOL, "User 1", "User 2", -3.0).await;
+
+    assert_eq!(
+        res,
+        Err(BangkError::InvalidAmount),
         "there was an unexpected error in the instruction"
     );
 

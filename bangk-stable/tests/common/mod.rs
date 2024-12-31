@@ -3,7 +3,7 @@
 // Creation date: Monday 17 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:55:32
+// Last modified: Tuesday 31 December 2024 @ 15:40:21
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -35,7 +35,7 @@ pub const PROGRAM_ID: Pubkey =
 #[must_use]
 pub fn to_tokens(amount: f64, decimals: u8) -> u64 {
     let res = amount * 10_f64.powi(i32::from(decimals));
-    res as u64
+    res.ceil() as u64
 }
 
 /// Get the address of the Exchange PDA for a given currency

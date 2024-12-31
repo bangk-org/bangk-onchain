@@ -3,7 +3,7 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:58:36
+// Last modified: Tuesday 31 December 2024 @ 16:46:37
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -90,10 +90,7 @@ async fn wrong_signer() -> Result<()> {
     let res = env
         .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "User"])
         .await;
-    assert!(
-        res.is_err_and(|err| err == BangkError::InvalidSigner),
-        "there was an unexpected error in the instruction"
-    );
+    assert_eq!(res, Err(BangkError::InvalidSigner),);
 
     Ok(())
 }
@@ -102,10 +99,7 @@ async fn wrong_signer() -> Result<()> {
 async fn double_creation() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
     let res = create_coin(&mut env, CURRENCY, SYMBOL, URI, DECIMALS).await;
-    assert!(
-        res.is_err_and(|err| err == BangkError::UniqueOperationAlreadyExecuted),
-        "there was an unexpected error in the instruction"
-    );
+    assert_eq!(res, Err(BangkError::UniqueOperationAlreadyExecuted),);
 
     Ok(())
 }
@@ -128,7 +122,6 @@ async fn update_metadata() -> Result<()> {
         Some(new_name.to_owned()),
         Some(new_uri.to_owned()),
     );
-    // println!("Instruction: {instruction:#?}");
     env.execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
         .await?;
 
@@ -156,10 +149,32 @@ async fn update_metadata_nodata() -> Result<()> {
     let res = env
         .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
         .await;
-    assert!(
-        res.is_err_and(|err| err == BangkError::InvalidOperation),
-        "there was an unexpected error in the instruction"
+    assert_eq!(res, Err(BangkError::InvalidOperation),);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_nonexisting_mint() -> Result<()> {
+    let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
+    let new_name = "USB".to_owned();
+    let new_uri = "new_uri".to_owned();
+    let admin1 = env.wallets["Admin 1"].pubkey();
+    let admin2 = env.wallets["Admin 2"].pubkey();
+    let admin3 = env.wallets["Admin 3"].pubkey();
+    let mint = get_stable_coin_mint("JPB");
+    let instruction = update_stable_coin(
+        &admin1,
+        &admin2,
+        &admin3,
+        &mint,
+        Some(new_name),
+        Some(new_uri),
     );
+    let res = env
+        .execute_transaction(&[instruction], &["Admin 1", "Admin 2", "Admin 3"])
+        .await;
+    assert_eq!(res, Err(BangkError::InvalidPdaAddress),);
 
     Ok(())
 }

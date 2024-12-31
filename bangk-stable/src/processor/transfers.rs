@@ -3,7 +3,7 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:53:40
+// Last modified: Tuesday 31 December 2024 @ 16:37:42
 // Modified by: Vincent Berthier
 // -----
 // Copyright © 2024 <Bangk> - All rights reserved
@@ -231,6 +231,11 @@ pub fn exchange(
     if amount > get_token_amount(&ctx.target_exchange)? {
         msg!("not enough tokens in the target exchange: aborting");
         return Err(Error::InsufficientExchangeFunds.into());
+    }
+
+    if exchanged_amount > get_token_amount(&ctx.source_ata)? {
+        msg!("not enough tokens on the source: aborting");
+        return Err(Error::InvalidAmount.into());
     }
 
     // Transfer source stable coins from user wallet to exchange wallet
