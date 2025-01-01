@@ -14,6 +14,7 @@
 #![warn(missing_docs)]
 
 mod config;
+#[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint;
 mod instruction;
 mod investment;
