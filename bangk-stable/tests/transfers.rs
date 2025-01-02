@@ -3,10 +3,10 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 31 December 2024 @ 16:27:44
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 #![allow(clippy::tests_outside_test_module)]
 #![allow(clippy::panic_in_result_fn)]
@@ -22,6 +22,8 @@ use std::{error, result};
 
 use bangk_onchain_common::Error as BangkError;
 use common::{get_ata, mint_coins, transfer_coins};
+use solana_sdk::signer::Signer;
+use tests_utilities::onchain::SOL_AMOUNT;
 pub mod common;
 
 const CURRENCY: &str = "Euro BANGK";
@@ -37,8 +39,20 @@ const USER_TARGET: &str = "User 2";
 async fn default() -> Result<()> {
     let mut env = common::init_with_mint(CURRENCY, SYMBOL, URI, DECIMALS).await?;
 
+    println!("checking initial balance");
+    assert_eq!(
+        env.get_balance(&env.wallets[USER_SOURCE].pubkey()).await,
+        Some(SOL_AMOUNT)
+    );
+
     mint_coins(&mut env, SYMBOL, USER_SOURCE, AMOUNT).await?;
     mint_coins(&mut env, SYMBOL, USER_TARGET, AMOUNT).await?;
+
+    println!("checking balance after mint");
+    assert_eq!(
+        env.get_balance(&env.wallets[USER_SOURCE].pubkey()).await,
+        Some(SOL_AMOUNT)
+    );
 
     let source_ata = get_ata(&env, USER_SOURCE, SYMBOL);
     let target_ata = get_ata(&env, USER_TARGET, SYMBOL);
@@ -57,7 +71,13 @@ async fn default() -> Result<()> {
         expected
     );
 
-    transfer_coins(&mut env, SYMBOL, "User 1", "User 2", AMOUNT).await?;
+    println!("checking balance before transfer");
+    assert_eq!(
+        env.get_balance(&env.wallets[USER_SOURCE].pubkey()).await,
+        Some(SOL_AMOUNT)
+    );
+
+    transfer_coins(&mut env, SYMBOL, USER_SOURCE, USER_TARGET, AMOUNT).await?;
     assert_eq!(
         env.get_token_amount(&source_ata)
             .await
@@ -69,6 +89,11 @@ async fn default() -> Result<()> {
             .await
             .ok_or("could not retrieve the token amount")?,
         expected * 2
+    );
+
+    assert_eq!(
+        env.get_balance(&env.wallets[USER_SOURCE].pubkey()).await,
+        Some(SOL_AMOUNT)
     );
 
     Ok(())

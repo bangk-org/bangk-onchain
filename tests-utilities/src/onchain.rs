@@ -3,10 +3,10 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 31 December 2024 @ 16:01:09
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 use std::{collections::HashMap, fmt::Debug};
 
@@ -20,7 +20,7 @@ use solana_program::{
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestBanksClientExt};
 use solana_sdk::{
-    account::Account,
+    account::{Account, ReadableAccount},
     instruction::InstructionError,
     signature::{keypair_from_seed_phrase_and_passphrase, Keypair},
     signer::Signer,
@@ -41,6 +41,8 @@ const API_KEY: [u8; 64] = [
     205, 162, 105, 186, 99, 228, 45, 248, 95, 176, 164, 34, 110, 163, 84, 179, 82, 240, 225, 185,
     112, 153, 240, 58,
 ];
+
+pub const SOL_AMOUNT: u64 = 1_000_000_000;
 
 /// Environment used for On-Chain tests
 pub struct Environment {
@@ -120,6 +122,22 @@ impl Environment {
         transaction.sign(signers.as_slice(), self.blockhash);
         let res = self.client.process_transaction(transaction).await;
 
+        // There’s always another signer in those tests, which means increased fees
+        // fix the difference on paying accounts by taking money from the API wallet
+        self.client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[transfer(
+                    &self.wallets["API"].pubkey(),
+                    &signers.first().unwrap().pubkey(),
+                    5_000,
+                )],
+                Some(&self.wallets["API"].pubkey()),
+                &[self.wallets["API"].insecure_clone()],
+                self.blockhash,
+            ))
+            .await
+            .unwrap();
+
         // Go to the next blockhash to prevent duplicated transactions from being ignored
         self.blockhash = self
             .client
@@ -135,6 +153,20 @@ impl Environment {
             ))) => Err(Error::from(err)),
             Err(err) => panic!("Unexpected error: {err}"),
         }
+    }
+
+    /// Get the SOL balance of an account.
+    ///
+    /// # Parameters
+    ///
+    /// # Parameters
+    /// * `address` - Address of the account for which to get the state
+    pub async fn get_balance(&mut self, address: &Pubkey) -> Option<u64> {
+        self.client
+            .get_account(*address)
+            .await
+            .ok()?
+            .map(|account| account.lamports())
     }
 
     /// Get the state of an account.
@@ -274,7 +306,7 @@ impl Environment {
         let Some(api_key) = self.wallets.get("API") else {
             panic!("no API key in the environment");
         };
-        let instruction = transfer(&api_key.pubkey(), &key, 1_000_000_000);
+        let instruction = transfer(&api_key.pubkey(), &key, SOL_AMOUNT);
         assert!(
             self.execute_transaction(&[instruction], &["API"])
                 .await

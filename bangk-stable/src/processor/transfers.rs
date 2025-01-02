@@ -3,10 +3,10 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 31 December 2024 @ 16:37:42
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 use bangk_onchain_common::{
     check_ata_exists, check_ata_owner, check_mint_ata, check_pda_owner, check_signers,
@@ -27,7 +27,7 @@ use spl_token_2022::instruction::transfer_checked;
 
 use crate::{
     compute_token_amount, get_decimals,
-    support::{get_token_amount, is_account_frozen},
+    support::{get_token_amount, is_account_frozen, reimburse_fee},
     CoinsAmountArgs, ConfigurationPda, UpdateExchangeRatesArgs,
 };
 
@@ -77,6 +77,7 @@ pub fn update_exchange_rates(
 
 struct TransferAccounts<'a> {
     signer: AccountInfo<'a>,
+    sig_admin: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     source_ata: AccountInfo<'a>,
     target_ata: AccountInfo<'a>,
@@ -89,6 +90,7 @@ impl<'a> TransferAccounts<'a> {
         let accounts_iter = &mut accounts.iter();
         Ok(Self {
             signer: next_account_info(accounts_iter)?.clone(),
+            sig_admin: next_account_info(accounts_iter)?.clone(),
             mint: next_account_info(accounts_iter)?.clone(),
             source_ata: next_account_info(accounts_iter)?.clone(),
             target_ata: next_account_info(accounts_iter)?.clone(),
@@ -143,7 +145,10 @@ pub fn transfer(
             ctx.target_ata.clone(),
             ctx.signer.clone(),
         ],
-    )
+    )?;
+    reimburse_fee(&ctx.signer, &ctx.sig_admin)?;
+
+    Ok(())
 }
 
 struct ExchangeAccounts<'a> {
@@ -279,5 +284,8 @@ pub fn exchange(
             ctx.sig_admin.clone(),
         ],
         &[admin_seeds.as_slice()],
-    )
+    )?;
+    reimburse_fee(&ctx.signer, &ctx.sig_admin)?;
+
+    Ok(())
 }

@@ -3,10 +3,10 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 24 December 2024 @ 19:01:46
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 use std::collections::HashSet;
 
@@ -20,9 +20,10 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
-    program::invoke_signed,
+    program::{invoke, invoke_signed},
     program_error::ProgramError,
     pubkey::Pubkey,
+    system_instruction::transfer,
 };
 use spl_token_2022::instruction::{freeze_account, thaw_account};
 
@@ -127,6 +128,12 @@ pub fn initialize(
     );
     let pda_admin = MultiSigPda::new(admin_bump, admin_sig);
     pda_admin.create(&ctx.admin_sig, &ctx.bangk, &crate::ID)?;
+
+    // Transfer one SOL to the admin multisig to pay for future user transactions
+    invoke(
+        &transfer(ctx.bangk.key, ctx.admin_sig.key, 1_000_000_000),
+        &[ctx.bangk.clone(), ctx.admin_sig.clone()],
+    )?;
 
     // Creating empty freeze keys PDA
     debug!("writing empty freeze multisig PDA");

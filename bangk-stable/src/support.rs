@@ -3,10 +3,10 @@
 // Creation date: Sunday 22 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:49:46
+// Last modified: Thursday 02 January 2025 @ 10:55:18
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 use bangk_onchain_common::Error;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
@@ -16,6 +16,8 @@ use spl_token_2022::{
 };
 
 use crate::{EXCHANGE_WALLET_SEED, STABLE_MINT_SEED};
+
+const TRX_FEE: u64 = 5_000;
 
 /// Get the address of the mint for a given currency
 ///
@@ -114,4 +116,26 @@ pub fn is_account_frozen(account: &AccountInfo) -> Result<bool, ProgramError> {
 #[allow(clippy::cast_sign_loss)]
 pub fn compute_token_amount(mint: &AccountInfo, amount: f64) -> Result<u64, ProgramError> {
     Ok((amount * 10_f64.powi(i32::from(get_decimals(mint)?))).floor() as u64)
+}
+
+/// Reimburse a user's transaction fee
+///
+/// # Parameters
+/// * `user` - The wallet to transfer the fee to,
+/// * `admin_sig` - The admin `MultiSig` account,
+///
+/// # Errors
+/// If the transfer could not be done
+pub fn reimburse_fee<'a>(user: &AccountInfo<'a>, admin_pda: &AccountInfo<'a>) -> Result<(), Error> {
+    user.lamports
+        .borrow_mut()
+        .checked_add(TRX_FEE)
+        .ok_or(Error::ArithmeticError)?;
+    admin_pda
+        .lamports
+        .borrow_mut()
+        .checked_sub(TRX_FEE)
+        .ok_or(Error::ArithmeticError)?;
+
+    Ok(())
 }

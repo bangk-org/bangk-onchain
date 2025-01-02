@@ -3,10 +3,10 @@
 // Creation date: Thursday 13 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 31 December 2024 @ 16:19:35
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 #![allow(clippy::tests_outside_test_module)]
 #![allow(clippy::panic_in_result_fn)]
@@ -28,6 +28,8 @@ use common::{
     to_tokens,
 };
 use solana_program_test::tokio;
+use solana_sdk::signer::Signer as _;
+use tests_utilities::onchain::SOL_AMOUNT;
 
 const CURRENCY: &str = "Euro BANGK";
 const SYMBOL: &str = "EUB";
@@ -130,6 +132,11 @@ async fn burn_operation() -> Result<()> {
     let expected = to_tokens(AMOUNT, DECIMALS);
     assert_eq!(expected, amount);
 
+    assert_eq!(
+        env.get_balance(&env.wallets[USER].pubkey()).await,
+        Some(SOL_AMOUNT)
+    );
+
     Ok(())
 }
 
@@ -143,6 +150,11 @@ async fn burn_and_close() -> Result<()> {
 
     let ata = get_ata(&env, USER, SYMBOL);
     assert!(env.get_account(&ata).await.is_none());
+
+    assert_eq!(
+        env.get_balance(&env.wallets[USER].pubkey()).await,
+        Some(SOL_AMOUNT)
+    );
 
     Ok(())
 }

@@ -3,10 +3,10 @@
 // Creation date: Tuesday 24 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 16:01:28
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 use bangk_onchain_common::{
     check_ata_owner, check_ata_program, check_mint_ata, check_pda_owner, check_signers,
@@ -30,7 +30,7 @@ use spl_token_2022::instruction::{burn, close_account, mint_to};
 
 use crate::{
     compute_token_amount,
-    support::{get_token_amount, is_account_frozen},
+    support::{get_token_amount, is_account_frozen, reimburse_fee},
     CoinsAmountArgs, EXCHANGE_WALLET_SEED,
 };
 
@@ -243,6 +243,7 @@ pub fn mint_exchange_coin(
 
 struct BurnCoinAccounts<'a> {
     signer: AccountInfo<'a>,
+    sig_admin: AccountInfo<'a>,
     mint: AccountInfo<'a>,
     ata: AccountInfo<'a>,
     program_system: AccountInfo<'a>,
@@ -255,6 +256,7 @@ impl<'a> BurnCoinAccounts<'a> {
         let accounts_iter = &mut accounts.iter();
         Ok(Self {
             signer: next_account_info(accounts_iter)?.clone(),
+            sig_admin: next_account_info(accounts_iter)?.clone(),
             mint: next_account_info(accounts_iter)?.clone(),
             ata: next_account_info(accounts_iter)?.clone(),
             program_system: next_account_info(accounts_iter)?.clone(),
@@ -327,11 +329,15 @@ pub fn burn_coin(
             amount,
         )?,
         &[ctx.ata.clone(), ctx.mint.clone(), ctx.signer.clone()],
-    )
+    )?;
+    reimburse_fee(&ctx.signer, &ctx.sig_admin)?;
+
+    Ok(())
 }
 
 struct CloseAccountAccounts<'a> {
     signer: AccountInfo<'a>,
+    sig_admin: AccountInfo<'a>,
     destination: AccountInfo<'a>,
     ata: AccountInfo<'a>,
     program_system: AccountInfo<'a>,
@@ -343,6 +349,7 @@ impl<'a> CloseAccountAccounts<'a> {
         let accounts_iter = &mut accounts.iter();
         Ok(Self {
             signer: next_account_info(accounts_iter)?.clone(),
+            sig_admin: next_account_info(accounts_iter)?.clone(),
             destination: next_account_info(accounts_iter)?.clone(),
             ata: next_account_info(accounts_iter)?.clone(),
             program_system: next_account_info(accounts_iter)?.clone(),
@@ -379,5 +386,8 @@ pub fn close_ata(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResul
             &[],
         )?,
         &[ctx.ata.clone(), ctx.destination.clone(), ctx.signer.clone()],
-    )
+    )?;
+    reimburse_fee(&ctx.signer, &ctx.sig_admin)?;
+
+    Ok(())
 }

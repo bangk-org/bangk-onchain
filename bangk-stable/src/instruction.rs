@@ -3,10 +3,10 @@
 // Creation date: Sunday 09 June 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Monday 30 December 2024 @ 17:00:17
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 use ::std::hash::BuildHasher;
 use std::collections::HashMap;
@@ -162,20 +162,22 @@ pub enum BangkStableInstruction {
 
     /// Burn Stable Coin from a given user
     #[account(0, signer, writable, name="signer", desc="Signer and fee payer for the instruction")]
-    #[account(1, writable, name="mint", desc="Mint of the stable coin")]
-    #[account(2, name="user", desc="User owning the burned coins")]
-    #[account(3, writable, name="ata", desc="User ATA where the coins are stored")]
-    #[account(4, name="system_program", desc="System Program")]
-    #[account(5, name="token_program", desc="SPL Token 2022 Program")]
-    #[account(6, name="ata_program", desc="Associated Token Account Program")]
+    #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(2, writable, name="mint", desc="Mint of the stable coin")]
+    #[account(3, name="user", desc="User owning the burned coins")]
+    #[account(4, writable, name="ata", desc="User ATA where the coins are stored")]
+    #[account(5, name="system_program", desc="System Program")]
+    #[account(6, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(7, name="ata_program", desc="Associated Token Account Program")]
     Burn(CoinsAmountArgs),
 
     /// Close a user's ATA
     #[account(0, signer, writable, name="signer", desc="Signer and fee payer for the instruction (owner of the account)")]
-    #[account(1, writable, name="destination", desc="The account to which the closing account will send its SOL")]
-    #[account(2, writable, name="ata", desc="User ATA where the coins are stored")]
-    #[account(3, name="system_program", desc="System Program")]
-    #[account(4, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(2, writable, name="destination", desc="The account to which the closing account will send its SOL")]
+    #[account(3, writable, name="ata", desc="User ATA where the coins are stored")]
+    #[account(4, name="system_program", desc="System Program")]
+    #[account(5, name="token_program", desc="SPL Token 2022 Program")]
     CloseAccount,
 
     /// Set or update currency exchange rates.
@@ -187,11 +189,12 @@ pub enum BangkStableInstruction {
 
     /// Transfer stable coins from one wallet to another
     #[account(0, signer, writable, name="signer", desc="Wallet owning the tokens to be transfered")]
-    #[account(1, name="mint", desc="Mint of the stable coin")]
-    #[account(2, writable, name="source_ata", desc="Source ATA of the tokkens to be transfered")]
-    #[account(3, writable, name="target_ata", desc="Target ATA receiving the transfered tokkens")]
-    #[account(4, name="system_program", desc="System Program")]
-    #[account(5, name="token_program", desc="SPL Token 2022 Program")]
+    #[account(1, name="admin_pda", desc="The PDA in which keys allowed to perform administration tasks are stored")]
+    #[account(2, name="mint", desc="Mint of the stable coin")]
+    #[account(3, writable, name="source_ata", desc="Source ATA of the tokkens to be transfered")]
+    #[account(4, writable, name="target_ata", desc="Target ATA receiving the transfered tokkens")]
+    #[account(5, name="system_program", desc="System Program")]
+    #[account(6, name="token_program", desc="SPL Token 2022 Program")]
     Transfer(CoinsAmountArgs),
 
     /// Exchange stable coins from one currency to another
@@ -469,12 +472,14 @@ pub fn mint(admin: &Pubkey, user: &Pubkey, mint: &Pubkey, amount: f64) -> Instru
 /// * `amount` - Amount received by the user,
 #[must_use]
 pub fn burn(user: &Pubkey, mint: &Pubkey, amount: f64) -> Instruction {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let ata = get_associated_token_address_with_program_id(user, mint, &spl_token_2022::id());
 
     Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*user, true),
+            AccountMeta::new(admin_keys_pda, false),
             AccountMeta::new(*mint, false),
             AccountMeta::new(ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
@@ -495,10 +500,13 @@ pub fn burn(user: &Pubkey, mint: &Pubkey, amount: f64) -> Instruction {
 /// * `destination` - The account receiving the `SOLs` of the closing account.
 #[must_use]
 pub fn close_stable_account(user: &Pubkey, ata: &Pubkey, destination: &Pubkey) -> Instruction {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
+
     Instruction {
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*user, true),
+            AccountMeta::new(admin_keys_pda, false),
             AccountMeta::new(*destination, false),
             AccountMeta::new(*ata, false),
             AccountMeta::new_readonly(system_program::ID, false),
@@ -555,6 +563,7 @@ pub fn mint_to_exchange(
 /// * `amount` - The number of coins to transfer.
 #[must_use]
 pub fn transfer(source: &Pubkey, target: &Pubkey, mint: &Pubkey, amount: f64) -> Instruction {
+    let (admin_keys_pda, _admin_bump) = MultiSigPda::get_address(MultiSigType::Admin, &crate::ID);
     let source_ata =
         get_associated_token_address_with_program_id(source, mint, &spl_token_2022::id());
     let target_ata =
@@ -564,6 +573,7 @@ pub fn transfer(source: &Pubkey, target: &Pubkey, mint: &Pubkey, amount: f64) ->
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(*source, true),
+            AccountMeta::new(admin_keys_pda, false),
             AccountMeta::new_readonly(*mint, false),
             AccountMeta::new(source_ata, false),
             AccountMeta::new(target_ata, false),

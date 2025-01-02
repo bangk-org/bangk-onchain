@@ -3,10 +3,10 @@
 // Creation date: Monday 23 December 2024
 // Author: Vincent Berthier <vincent.berthier@bangk.app>
 // -----
-// Last modified: Tuesday 31 December 2024 @ 16:40:55
+// Last modified: Thursday 02 January 2025 @ 10:55:02
 // Modified by: Vincent Berthier
 // -----
-// Copyright © 2024 <Bangk> - All rights reserved
+// Copyright © 2025 <Bangk> - All rights reserved
 
 #![allow(clippy::tests_outside_test_module)]
 #![allow(clippy::panic_in_result_fn)]
@@ -27,7 +27,7 @@ use common::{
     mint_exchange_coins, thaw_ata, to_tokens,
 };
 use solana_sdk::{pubkey::Pubkey, signer::Signer as _};
-use tests_utilities::onchain::Environment;
+use tests_utilities::onchain::{Environment, SOL_AMOUNT};
 pub mod common;
 
 const FREEZE_USER1: &str = "Freeze 1";
@@ -217,6 +217,11 @@ async fn exchange_eur_foreign() -> Result<()> {
         Some(to_tokens(AMOUNT, DECIMALS_JPY))
     );
 
+    assert_eq!(
+        env.get_balance(&env.wallets[USER_SOURCE].pubkey()).await,
+        Some(SOL_AMOUNT)
+    );
+
     Ok(())
 }
 
@@ -269,6 +274,11 @@ async fn exchange_foreign_eur() -> Result<()> {
         Some(to_tokens(AMOUNT, DECIMALS_DEFAULT))
     );
 
+    assert_eq!(
+        env.get_balance(&env.wallets[USER_SOURCE].pubkey()).await,
+        Some(SOL_AMOUNT)
+    );
+
     Ok(())
 }
 
@@ -318,6 +328,11 @@ async fn exchange_foreign_foreign() -> Result<()> {
     assert_eq!(
         env.get_token_amount(&target_ata).await,
         Some(to_tokens(AMOUNT, DECIMALS_DEFAULT))
+    );
+
+    assert_eq!(
+        env.get_balance(&env.wallets[USER_SOURCE].pubkey()).await,
+        Some(SOL_AMOUNT)
     );
 
     Ok(())
